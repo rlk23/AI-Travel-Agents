@@ -1,8 +1,9 @@
-import spacy 
+import spacy
+import re
 from datetime import datetime
-from city_to_airport_agent import CityToAirportAgent
-from flight_search_agent import FlightSearchAgent
-from result_compilation_agent import ResultCompilationAgent
+from .city_to_airport_agent import CityToAirportAgent
+from .flight_search_agent import FlightSearchAgent
+from .result_compilation_agent import ResultCompilationAgent
 
 class NLPFlightBookingAgent:
     def __init__(self):
@@ -11,52 +12,76 @@ class NLPFlightBookingAgent:
         self.result_agent = ResultCompilationAgent()
         self.nlp = spacy.load("en_core_web_sm")
 
-    
-    def parse_prompt(self,prompt):
-
+    def parse_prompt(self, prompt):
         doc = self.nlp(prompt)
-        
-        # Extract entities and terms
-        entities = {"origin": None, "destination": None, "depart_date": None, "return_date": None, "trip_type": None, "price_min": None, "price_max": None}
-        
-        for ent in doc.ents:
-            if ent.label_ == "GPE":  # GPE: Geo-political entity, used for cities
-                if not entities["origin"]:
-                    entities["origin"] = ent.text
-                elif not entities["destination"]:
-                    entities["destination"] = ent.text
-            elif ent.label_ == "DATE":
-                if not entities["depart_date"]:
-                    entities["depart_date"] = self.parse_date(ent.text)
-                elif not entities["return_date"]:
-                    entities["return_date"] = self.parse_date(ent.text)
-            elif ent.label_ == "MONEY":
-                price = int(ent.text.replace("$", ""))
-                if not entities["price_min"]:
-                    entities["price_min"] = price
-                else:
-                    entities["price_max"] = price
 
-        # Determine trip type based on terms in the prompt
+        # Initialize entities
+        entities = {
+            "origin": None,
+            "destination": None,
+            "depart_date": None,
+            "return_date": None,
+            "trip_type": "one-way",
+            "price_min": None,
+            "price_max": None
+        }
+
+        # Extract GPE entities for origin and destination
+        gpe_entities = [ent.text for ent in doc.ents if ent.label_ == "GPE"]
+        if len(gpe_entities) >= 2:
+            entities["origin"] = gpe_entities[0]
+            entities["destination"] = gpe_entities[1]
+        elif len(gpe_entities) == 1:
+            entities["origin"] = gpe_entities[0]
+
+        # Use regex to extract dates in YYYY-MM-DD format
+        date_pattern = r"\d{4}-\d{2}-\d{2}"
+        dates = re.findall(date_pattern, prompt)
+        if dates:
+            entities["depart_date"] = dates[0]
+            if len(dates) > 1:
+                entities["return_date"] = dates[1]
+                entities["trip_type"] = "round-trip"
+
+        # If dates are not in YYYY-MM-DD, try to extract them using spaCy
+        else:
+            date_entities = [ent.text for ent in doc.ents if ent.label_ == "DATE"]
+            parsed_dates = [self.parse_date(date_str) for date_str in date_entities]
+            parsed_dates = [date for date in parsed_dates if date]
+            if parsed_dates:
+                entities["depart_date"] = parsed_dates[0]
+                if len(parsed_dates) > 1:
+                    entities["return_date"] = parsed_dates[1]
+                    entities["trip_type"] = "round-trip"
+
+        # Extract price range using regex
+        price_pattern = r"\b\d+(?:\.\d+)?"
+        prices = re.findall(price_pattern, prompt)
+        if prices:
+            prices = [float(price) for price in prices]
+            if len(prices) >= 2:
+                entities["price_min"] = prices[0]
+                entities["price_max"] = prices[1]
+            elif len(prices) == 1:
+                entities["price_min"] = prices[0]
+
+        # Determine trip type based on keywords
         if "round-trip" in prompt or "return" in prompt:
             entities["trip_type"] = "round-trip"
-        else:
-            entities["trip_type"] = "one-way"
-        
-        return entities
-    
 
+        print("Parsed Booking Details:", entities)
+        return entities
 
     def parse_date(self, date_text):
-        """Convert text date to YYYY-MM-DD format if possible."""
-        try:
-            return datetime.strptime(date_text, "%B %d").strftime("%Y-%m-%d")
-        except ValueError:
-            return None  # 
-
+        """Attempt to parse dates in various common formats."""
+        for fmt in ("%Y-%m-%d", "%m/%d/%Y", "%d %B %Y", "%B %d %Y", "%B %d", "%d %B"):
+            try:
+                return datetime.strptime(date_text, fmt).strftime("%Y-%m-%d")
+            except ValueError:
+                continue
+        return None
 
     def book_flight(self, prompt):
-        # Step 1: Parse user input to get booking details
         booking_details = self.parse_prompt(prompt)
         origin_code = self.city_agent.city_to_airport_code(booking_details["origin"])
         destination_code = self.city_agent.city_to_airport_code(booking_details["destination"])
@@ -65,19 +90,28 @@ class NLPFlightBookingAgent:
             print("Unable to retrieve airport codes. Please check the city names and try again.")
             return
 
-        # Step 2: Search for flights
-        departure_flights = self.flight_agent.search_flights(origin_code, destination_code, booking_details["depart_date"])
-        
-        # Step 3: Display results with filtering
-        print("Departure Flight Options:")
-        self.result_agent.format_results(departure_flights, booking_details["price_min"], booking_details["price_max"])
-        
-        if booking_details["trip_type"] == "round-trip" and booking_details["return_date"]:
-            return_flights = self.flight_agent.search_flights(destination_code, origin_code, booking_details["return_date"])
-            print("\nReturn Flight Options:")
-            self.result_agent.format_results(return_flights, booking_details["price_min"], booking_details["price_max"])
+        departure_flights = self.flight_agent.search_flights(
+            origin_code,
+            destination_code,
+            booking_details["depart_date"]
+        )
 
-if __name__ == "__main__":
-    agent = NLPFlightBookingAgent()
-    user_prompt = input("Please describe your flight booking: ")
-    agent.book_flight(user_prompt)
+        print("Departure Flight Options:")
+        self.result_agent.format_results(
+            departure_flights,
+            booking_details["price_min"],
+            booking_details["price_max"]
+        )
+
+        if booking_details["trip_type"] == "round-trip" and booking_details["return_date"]:
+            return_flights = self.flight_agent.search_flights(
+                destination_code,
+                origin_code,
+                booking_details["return_date"]
+            )
+            print("\nReturn Flight Options:")
+            self.result_agent.format_results(
+                return_flights,
+                booking_details["price_min"],
+                booking_details["price_max"]
+            )
