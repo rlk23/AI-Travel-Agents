@@ -54,16 +54,11 @@ class NLPFlightBookingAgent:
                     entities["return_date"] = parsed_dates[1]
                     entities["trip_type"] = "round-trip"
 
-        # Extract price range using regex
-        price_pattern = r"\b\d+(?:\.\d+)?"
-        prices = re.findall(price_pattern, prompt)
-        if prices:
-            prices = [float(price) for price in prices]
-            if len(prices) >= 2:
-                entities["price_min"] = prices[0]
-                entities["price_max"] = prices[1]
-            elif len(prices) == 1:
-                entities["price_min"] = prices[0]
+        # Extract price range based on context keywords
+        price_context = re.search(r"(price|between|range).*?(\d+).*?[-toand]+\s*(\d+)", prompt)
+        if price_context:
+            entities["price_min"] = float(price_context.group(2))
+            entities["price_max"] = float(price_context.group(3))
 
         # Determine trip type based on keywords
         if "round-trip" in prompt or "return" in prompt:
@@ -81,7 +76,7 @@ class NLPFlightBookingAgent:
                 continue
         return None
 
-    def book_flight(self, prompt):
+    def book_flight(self, prompt, max_flights=5):
         booking_details = self.parse_prompt(prompt)
         origin_code = self.city_agent.city_to_airport_code(booking_details["origin"])
         destination_code = self.city_agent.city_to_airport_code(booking_details["destination"])
@@ -90,6 +85,7 @@ class NLPFlightBookingAgent:
             print("Unable to retrieve airport codes. Please check the city names and try again.")
             return
 
+        # Retrieve and display multiple departure flights
         departure_flights = self.flight_agent.search_flights(
             origin_code,
             destination_code,
@@ -100,9 +96,11 @@ class NLPFlightBookingAgent:
         self.result_agent.format_results(
             departure_flights,
             booking_details["price_min"],
-            booking_details["price_max"]
+            booking_details["price_max"],
+            max_results=max_flights  # Display up to max_flights
         )
 
+        # Retrieve and display multiple return flights if round-trip
         if booking_details["trip_type"] == "round-trip" and booking_details["return_date"]:
             return_flights = self.flight_agent.search_flights(
                 destination_code,
@@ -113,5 +111,6 @@ class NLPFlightBookingAgent:
             self.result_agent.format_results(
                 return_flights,
                 booking_details["price_min"],
-                booking_details["price_max"]
+                booking_details["price_max"],
+                max_results=max_flights  # Display up to max_flights
             )

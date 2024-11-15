@@ -1,12 +1,13 @@
 class ResultCompilationAgent:
-    def format_results(self, flight_data, min_price=None, max_price=None):
+    def format_results(self, flight_data, min_price=None, max_price=None, max_results=5):
         """
-        Format and display flight results based on price range, or top 5 flights if no matches are found.
+        Format and display flight results based on price range, or top `max_results` flights if no matches are found.
 
         Args:
             flight_data (dict): The raw flight data returned from the API.
             min_price (float): The minimum price to filter flights by.
             max_price (float): The maximum price to filter flights by.
+            max_results (int): The maximum number of fallback flights to display if no matches are found.
         """
         if "data" not in flight_data:
             print("No flight data available.")
@@ -21,14 +22,14 @@ class ResultCompilationAgent:
                (max_price is None or float(flight["price"]["total"]) <= max_price)
         ]
 
-        # Display filtered flights or top 5 if none match the price range
+        # Display filtered flights or top `max_results` if none match the price range
         if filtered_flights:
             print("Filtered Flight Options:")
             self.display_flights(filtered_flights)
         else:
-            print("No flights found within the specified price range.")
-            print("Displaying the top 5 available flights:")
-            self.display_flights(flight_data["data"][:5])
+            print(f"No flights found within the specified price range ({min_price} - {max_price}).")
+            print(f"Displaying the top {max_results} available flights:")
+            self.display_flights(flight_data["data"][:max_results])
 
     def display_flights(self, flights):
         """
