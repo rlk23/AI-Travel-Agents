@@ -1,3 +1,4 @@
+# city_to_airport_agent.py
 import requests
 import time
 from config import FLIGHT_API_KEY, FLIGHT_API_SECRET
@@ -21,10 +22,14 @@ class CityToAirportAgent:
             raise Exception("Failed to authenticate with Amadeus API: " + response.text)
 
     def city_to_airport_code(self, city_name, max_retries=3):
+        if not city_name or not city_name.strip():
+            print(f"Invalid city name provided: '{city_name}'")
+            return None
+
         headers = {"Authorization": f"Bearer {self.access_token}"}
         params = {
-            "subType": "AIRPORT",
-            "keyword": city_name,
+            "subType": "AIRPORT,CITY",
+            "keyword": city_name.strip(),
             "page[limit]": 1
         }
 
@@ -34,20 +39,18 @@ class CityToAirportAgent:
                 headers=headers,
                 params=params
             )
-            
-            # Check if request was successful
             if response.status_code == 200:
                 data = response.json()
-                if data["data"]:
+                if "data" in data and data["data"]:
                     return data["data"][0]["iataCode"]
                 else:
-                    print(f"No airport found for city '{city_name}'")
+                    print(f"No airport or city found for '{city_name}'")
                     return None
             elif response.status_code == 429:
-                print("Rate limit exceeded. Retrying after a short delay...")
-                time.sleep(5)  # Wait 5 seconds before retrying
+                print("Rate limit exceeded. Retrying...")
+                time.sleep(5)
             else:
-                print("Error fetching airport code:", response.json().get("error", response.text))
+                print("Error fetching airport code:", response.json().get("errors", response.text))
                 return None
 
         print(f"Failed to retrieve airport code for '{city_name}' after {max_retries} attempts.")

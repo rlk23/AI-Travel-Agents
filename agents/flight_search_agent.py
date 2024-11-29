@@ -1,6 +1,5 @@
 # flight_search_agent.py
 import requests
-from config import FLIGHT_API_KEY, FLIGHT_API_SECRET
 
 class FlightSearchAgent:
     def __init__(self, access_token):
@@ -22,10 +21,8 @@ class FlightSearchAgent:
             headers=headers,
             params=params
         )
-        
-        # Check if the response was successful
         if response.status_code == 200:
             return response.json()
         else:
-            print("Error fetching flights:", response.json().get("error", response.text))
+            print("Error fetching flights:", response.json().get("errors", response.text))
             return {"error": "Failed to retrieve flights"}
