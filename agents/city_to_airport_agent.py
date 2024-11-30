@@ -1,7 +1,8 @@
 # city_to_airport_agent.py
 import requests
 import time
-from config import FLIGHT_API_KEY, FLIGHT_API_SECRET
+#from config import FLIGHT_API_KEY, FLIGHT_API_SECRET
+from load_environement import flight_api_key, flight_api_secret
 
 class CityToAirportAgent:
     def __init__(self):
@@ -12,8 +13,8 @@ class CityToAirportAgent:
             "https://test.api.amadeus.com/v1/security/oauth2/token",
             data={
                 "grant_type": "client_credentials",
-                "client_id": FLIGHT_API_KEY,
-                "client_secret": FLIGHT_API_SECRET
+                "client_id": flight_api_key,
+                "client_secret": flight_api_secret
             }
         )
         if response.status_code == 200:
