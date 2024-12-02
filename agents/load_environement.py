@@ -11,3 +11,5 @@ hotel_api_key = os.getenv('HOTEL_API_KEY')
 google_api_key = os.getenv('GOOGLE_API_KEY')
 chatgpt_api_key = os.getenv('CHATGPT_API_KEY')
 langchain_api_key = os.getenv('LANGCHAIN_API_KEY')
+
+

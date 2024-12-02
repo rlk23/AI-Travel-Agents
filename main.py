@@ -7,7 +7,7 @@ if __name__ == "__main__":
     result_agent = ResultCompilationAgent()
 
     # Get the user input
-    user_prompt = input("Please describe your flight booking: ")
+    user_prompt = input("Please describe your travel plans: ")
 
     # Parse the booking details
     booking_details = nlp_agent.parse_prompt(user_prompt)
@@ -21,6 +21,7 @@ if __name__ == "__main__":
         print("Unable to retrieve airport codes. Please check the city names and try again.")
     else:
         # Fetch departure flights
+        print("\nSearching for Departure Flights...")
         departure_flights = nlp_agent.flight_agent.search_flights(
             origin=origin_code,
             destination=destination_code,
@@ -37,6 +38,7 @@ if __name__ == "__main__":
 
         # Fetch return flights if it is a round-trip
         if booking_details["trip_type"] == "round-trip" and booking_details["return_date"]:
+            print("\nSearching for Return Flights...")
             return_flights = nlp_agent.flight_agent.search_flights(
                 origin=destination_code,
                 destination=origin_code,
@@ -50,3 +52,25 @@ if __name__ == "__main__":
                 max_price=booking_details["price_max"],
                 max_results=5
             )
+
+        # Check if hotel booking is required
+        if booking_details.get("hotel_check_in") and booking_details.get("hotel_check_out"):
+            print("\nSearching for Hotels...")
+            hotel_data = nlp_agent.hotel_agent.search_hotels(
+                destination_code,
+                booking_details["hotel_check_in"],
+                booking_details["hotel_check_out"]
+            )
+
+            print("\nHotel Options:")
+            result_agent.format_hotel_results(
+                hotel_data=hotel_data,
+                max_results=5
+            )
+
+        # Optional prompt to finalize booking
+        finalize_booking = input("\nWould you like to proceed with the booking? (yes/no): ").strip().lower()
+        if finalize_booking == "yes":
+            print("Booking confirmation feature is under development. Stay tuned!")
+        else:
+            print("Thank you for using our travel agent. Have a great day!")

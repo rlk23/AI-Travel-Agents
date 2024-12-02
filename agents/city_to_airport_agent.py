@@ -2,25 +2,29 @@
 import requests
 import time
 #from config import FLIGHT_API_KEY, FLIGHT_API_SECRET
-from load_environement import flight_api_key, flight_api_secret
+from .load_environement import flight_api_key, flight_api_secret
+import urllib.parse
 
 class CityToAirportAgent:
     def __init__(self):
         self.access_token = self.authenticate()
 
+
+
     def authenticate(self):
-        response = requests.post(
-            "https://test.api.amadeus.com/v1/security/oauth2/token",
-            data={
-                "grant_type": "client_credentials",
-                "client_id": flight_api_key,
-                "client_secret": flight_api_secret
-            }
-        )
+        data = {
+            "grant_type": "client_credentials",
+            "client_id": urllib.parse.quote(flight_api_key),
+            "client_secret": urllib.parse.quote(flight_api_secret)
+        }
+        response = requests.post("https://test.api.amadeus.com/v1/security/oauth2/token", data=data)
+        print("Response Code:", response.status_code)
+        print("Response Text:", response.text)
         if response.status_code == 200:
             return response.json()["access_token"]
         else:
             raise Exception("Failed to authenticate with Amadeus API: " + response.text)
+
 
     def city_to_airport_code(self, city_name, max_retries=3):
         if not city_name or not city_name.strip():
@@ -56,3 +60,5 @@ class CityToAirportAgent:
 
         print(f"Failed to retrieve airport code for '{city_name}' after {max_retries} attempts.")
         return None
+
+

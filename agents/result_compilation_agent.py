@@ -48,3 +48,20 @@ class ResultCompilationAgent:
                           f"{segment['departure']['iataCode']} -> {segment['arrival']['iataCode']}")
                     print(f"    Departure: {segment['departure']['at']}, Arrival: {segment['arrival']['at']}")
             print("\n" + "-" * 50)
+
+
+    def format_hotel_results(self, hotel_data, max_results=5):
+        if "data" not in hotel_data:
+            print("No hotel data available")
+            return
+        
+        
+        print("Available Hotels:")
+
+
+        for hotel in hotel_data["data"][:max_results]:
+            print(f"Hotel NameL {hotel['hotel']['name']}")
+            print(f"Price: {hotel['offers'][0]['price']['current']}{hotel['offers'][0]['price']['total']}")
+            print(f"Check-in: {hotel['offers'][0]['checkInDate']}, Check-out: {hotel['offers'][0]['checkOutDate']}")
+            print("-" * 50)
+
