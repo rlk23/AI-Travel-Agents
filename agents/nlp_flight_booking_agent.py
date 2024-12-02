@@ -39,15 +39,15 @@ class NLPFlightBookingAgent:
         # Extract dates
         date_pattern = r"\d{4}-\d{2}-\d{2}"
         dates = re.findall(date_pattern, prompt)
-        if dates:
+        if len(dates) >= 1:
             entities["depart_date"] = dates[0]
-            if len(dates) > 1:
-                entities["return_date"] = dates[1]
-                entities["trip_type"] = "round-trip"
-            if len(dates) > 2:
-                entities["hotel_check_in"] = dates[2]
-                if len(dates) > 3:
-                    entities["hotel_check_out"] = dates[3]
+        if len(dates) >= 2:
+            entities["return_date"] = dates[1]
+            entities["trip_type"] = "round-trip"
+        if len(dates) >= 3:
+            entities["hotel_check_in"] = dates[2]
+        if len(dates) >= 4:
+            entities["hotel_check_out"] = dates[3]
 
         # Extract hotel preferences
         if "hotel" in prompt:
@@ -94,6 +94,8 @@ class NLPFlightBookingAgent:
 
         # Hotel Booking
         if booking_details.get("hotel_check_in") and booking_details.get("hotel_check_out"):
+            print(f"Hotel Search: destination_code={destination_code}, check_in_date={booking_details['hotel_check_in']}, check_out_date={booking_details['hotel_check_out']}")
+            
             print("\nBooking Hotels...")
             hotel_data = self.hotel_agent.search_hotels(
                 destination_code,
@@ -103,8 +105,9 @@ class NLPFlightBookingAgent:
             print("\nHotel Options:")
             self.format_hotel_results(hotel_data)
 
+
     def format_results(self, flight_data, min_price=None, max_price=None, max_results=5):
-        if "data" not in flight_data:
+        if "data" not in flight_data or not flight_data["data"]:
             print("No flight data available.")
             return
 
@@ -136,13 +139,24 @@ class NLPFlightBookingAgent:
         print("-" * 50)
 
     def format_hotel_results(self, hotel_data, max_results=5):
-        if "data" not in hotel_data:
+        """
+        Format and display hotel results from the Amadeus API response.
+        """
+        if "data" not in hotel_data or not hotel_data["data"]:
             print("No hotel data available.")
             return
 
         print("\nAvailable Hotels:")
         for hotel in hotel_data["data"][:max_results]:
-            print(f"Hotel Name: {hotel['hotel']['name']}")
-            print(f"Price: {hotel['offers'][0]['price']['currency']} {hotel['offers'][0]['price']['total']}")
-            print(f"Check-in: {hotel['offers'][0]['checkInDate']}, Check-out: {hotel['offers'][0]['checkOutDate']}")
+            hotel_name = hotel["hotel"]["name"] if "name" in hotel["hotel"] else "N/A"
+            price_details = hotel["offers"][0]["price"] if "offers" in hotel and hotel["offers"] else {}
+            currency = price_details.get("currency", "USD")
+            total_price = price_details.get("total", "N/A")
+
+            print(f"Hotel Name: {hotel_name}")
+            print(f"Price: {currency} {total_price}")
+            check_in = hotel["offers"][0].get("checkInDate", "N/A")
+            check_out = hotel["offers"][0].get("checkOutDate", "N/A")
+            print(f"Check-in: {check_in}, Check-out: {check_out}")
             print("-" * 50)
+

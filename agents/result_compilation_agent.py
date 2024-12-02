@@ -51,17 +51,23 @@ class ResultCompilationAgent:
 
 
     def format_hotel_results(self, hotel_data, max_results=5):
-        if "data" not in hotel_data:
-            print("No hotel data available")
+        """
+        Format and display hotel results from the Amadeus API response.
+        """
+        if "data" not in hotel_data or not hotel_data["data"]:
+            print("No hotel data available.")
             return
-        
-        
-        print("Available Hotels:")
 
-
+        print("\nAvailable Hotels:")
         for hotel in hotel_data["data"][:max_results]:
-            print(f"Hotel NameL {hotel['hotel']['name']}")
-            print(f"Price: {hotel['offers'][0]['price']['current']}{hotel['offers'][0]['price']['total']}")
-            print(f"Check-in: {hotel['offers'][0]['checkInDate']}, Check-out: {hotel['offers'][0]['checkOutDate']}")
-            print("-" * 50)
+            hotel_name = hotel["hotel"]["name"] if "name" in hotel["hotel"] else "N/A"
+            price_details = hotel["offers"][0]["price"] if "offers" in hotel and hotel["offers"] else {}
+            currency = price_details.get("currency", "USD")
+            total_price = price_details.get("total", "N/A")
 
+            print(f"Hotel Name: {hotel_name}")
+            print(f"Price: {currency} {total_price}")
+            check_in = hotel["offers"][0].get("checkInDate", "N/A")
+            check_out = hotel["offers"][0].get("checkOutDate", "N/A")
+            print(f"Check-in: {check_in}, Check-out: {check_out}")
+            print("-" * 50)

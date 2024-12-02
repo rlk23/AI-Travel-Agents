@@ -1,61 +1,61 @@
 import requests
 
-
 class HotelSearchAgent:
     def __init__(self, access_token):
-        self.accces_token = access_token
+        self.access_token = access_token
 
-    
-
-    def search_hotels(self,city, check_in, check_out, max_results=5):
-        headers = {"Authorization":f"Bearer {self.access_token}"}
-
-        params = {
-            "cityCode": city,
-            "checkInDate": check_in,
-            "checkOutDate": check_out,
-            "adults": 1,
-            "roomQuantity": 1,
-            "max": max_results
-        }
+    def get_hotel_ids(self, city_code, limit=50):
+        """
+        Fetch hotel IDs for a given city code using the Amadeus API, limited to a specified number.
+        """
+        headers = {"Authorization": f"Bearer {self.access_token}"}
+        url = "https://test.api.amadeus.com/v1/reference-data/locations/hotels/by-city"
 
         response = requests.get(
-            "https://test.api.amadeus.com/v2/shopping/hotel-offers",
+            url,
             headers=headers,
-            params=params
+            params={"cityCode": city_code}
         )
 
-
         if response.status_code == 200:
-            return response.json()
+            hotels = response.json().get('data', [])
+            hotel_ids = [hotel['hotelId'] for hotel in hotels[:limit]]
+            print(f"Fetched up to {limit} hotel IDs for city {city_code}: {hotel_ids}")
+            return hotel_ids
         else:
-            print("Error fetching hotels:", response.json().get("errors",response.text))
-            return {"error":"Failed to retrieve hotels"}
-    
+            print(f"Error fetching hotel IDs for {city_code}: {response.json()}")
+            return None
 
+    def search_hotels(self, city_code, check_in_date, check_out_date, adults=1):
+        """
+        Search for hotel offers using a limited number of hotel IDs.
+        """
+        headers = {"Authorization": f"Bearer {self.access_token}"}
+        
+        # Fetch limited hotel IDs for the city
+        hotel_ids = self.get_hotel_ids(city_code, limit=50)  # Limit to 50 hotels
+        if not hotel_ids:
+            print("No hotel IDs found for the specified city.")
+            return {"error": "No hotels available in this city."}
 
-    def book_hotel(self, hotel_id, room_id, guests, payment_details):
-
-        headers = {"Authorization":f"Bearer {self.access_token}"}
-        payload = {
-            "hotelsId": hotel_id,
-            "roomId":room_id,
-            "guests": guests,
-            "paymentDetails": payment_details
+        # Prepare a single request for the first 50 hotels
+        url = "https://test.api.amadeus.com/v3/shopping/hotel-offers"
+        params = {
+            "hotelIds": ','.join(hotel_ids),
+            "checkInDate": check_in_date,
+            "checkOutDate": check_out_date,
+            "adults": adults,
+            "bestRateOnly": True
         }
 
-        
-        response = requests.post(
-            "https://test.api.amadeus.com/v2/booking/hotel-bookings",
-            headers=headers,
-            json=payload
-        )
+        response = requests.get(url, headers=headers, params=params)
 
         if response.status_code == 200:
-            return response.json()
-        
+            offers = response.json().get('data', [])
+            if offers:
+                return {"data": offers}
+            else:
+                return {"error": "No hotel offers available for the selected parameters."}
         else:
-            print("Error booking hotel:", response.json().get("errors", response.text))
-            return {"error": "Failed to book hotel"}
-        
-
+            print(f"Error fetching hotel offers: {response.json()}")
+            return {"error": response.json()}

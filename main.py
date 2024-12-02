@@ -53,20 +53,20 @@ if __name__ == "__main__":
                 max_results=5
             )
 
-        # Check if hotel booking is required
+        # Search hotels if hotel dates are provided
         if booking_details.get("hotel_check_in") and booking_details.get("hotel_check_out"):
             print("\nSearching for Hotels...")
             hotel_data = nlp_agent.hotel_agent.search_hotels(
-                destination_code,
-                booking_details["hotel_check_in"],
-                booking_details["hotel_check_out"]
+                city_code=destination_code,
+                check_in_date=booking_details["hotel_check_in"],
+                check_out_date=booking_details["hotel_check_out"]
             )
 
-            print("\nHotel Options:")
-            result_agent.format_hotel_results(
-                hotel_data=hotel_data,
-                max_results=5
-            )
+            if "data" in hotel_data:
+                print("\nHotel Options:")
+                result_agent.format_hotel_results(hotel_data, max_results=5)
+            else:
+                print("\nNo hotel data available.")
 
         # Optional prompt to finalize booking
         finalize_booking = input("\nWould you like to proceed with the booking? (yes/no): ").strip().lower()
