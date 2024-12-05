@@ -2,8 +2,8 @@ import React, { useState } from "react";
 import axios from "axios";
 
 const App = () => {
-  const [prompt, setPrompt] = useState(""); // Input for user prompt
-  const [result, setResult] = useState(null); // Result from the backend
+  const [prompt, setPrompt] = useState(""); // User input
+  const [result, setResult] = useState(null); // Backend response
   const [loading, setLoading] = useState(false); // Loading state
 
   const handlePromptSubmit = async (e) => {
@@ -12,10 +12,11 @@ const App = () => {
     setResult(null);
 
     try {
-      // Send the prompt to your backend
-      const response = await axios.post("http://localhost:5000/api/ai-agent", { prompt });
+      // Replace with your API endpoint
+      const API_BASE_URL = process.env.REACT_APP_API_BASE_URL || "http://localhost:5000";
+      const response = await axios.post(`${API_BASE_URL}/api/ai-agent`, { prompt });
 
-      setResult(response.data); // Save the result from backend
+      setResult(response.data); // Set result from backend
     } catch (error) {
       console.error("Error:", error);
       setResult({ error: "Something went wrong. Please try again." });

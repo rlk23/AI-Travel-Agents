@@ -1,76 +1,72 @@
+from flask import Flask, request, jsonify
 from agents.nlp_flight_booking_agent import NLPFlightBookingAgent
 from agents.result_compilation_agent import ResultCompilationAgent
 
-if __name__ == "__main__":
-    # Initialize the NLP agent and result compilation agent
-    nlp_agent = NLPFlightBookingAgent()
-    result_agent = ResultCompilationAgent()
+# Initialize Flask app
+app = Flask(__name__)
 
-    # Get the user input
-    user_prompt = input("Please describe your travel plans: ")
+# Initialize agents
+nlp_agent = NLPFlightBookingAgent()
+result_agent = ResultCompilationAgent()
 
-    # Parse the booking details
-    booking_details = nlp_agent.parse_prompt(user_prompt)
+@app.route("/api/ai-agent", methods=["POST"])
+def ai_agent():
+    data = request.json
+    user_prompt = data.get("prompt", "")
 
-    # Retrieve airport codes
-    origin_code = nlp_agent.city_agent.city_to_airport_code(booking_details["origin"])
-    destination_code = nlp_agent.city_agent.city_to_airport_code(booking_details["destination"])
+    # Validate the prompt
+    if not user_prompt:
+        return jsonify({"error": "Prompt is required"}), 400
 
-    # Handle case where airport codes are not found
-    if not origin_code or not destination_code:
-        print("Unable to retrieve airport codes. Please check the city names and try again.")
-    else:
+    try:
+        # Process user prompt
+        booking_details = nlp_agent.parse_prompt(user_prompt)
+
+        # Retrieve airport codes
+        origin_code = nlp_agent.city_agent.city_to_airport_code(booking_details["origin"])
+        destination_code = nlp_agent.city_agent.city_to_airport_code(booking_details["destination"])
+
+        # Validate airport codes
+        if not origin_code or not destination_code:
+            return jsonify({"error": "Invalid city names provided."}), 400
+
         # Fetch departure flights
-        print("\nSearching for Departure Flights...")
         departure_flights = nlp_agent.flight_agent.search_flights(
             origin=origin_code,
             destination=destination_code,
             date=booking_details["depart_date"]
         )
 
-        print("\nDeparture Flight Options:")
-        result_agent.format_results(
-            flight_data=departure_flights,
-            min_price=booking_details["price_min"],
-            max_price=booking_details["price_max"],
-            max_results=5
-        )
+        result_data = {
+            "departure_flights": departure_flights,
+            "trip_type": booking_details["trip_type"],
+        }
 
-        # Fetch return flights if it is a round-trip
+        # Fetch return flights for round-trip
         if booking_details["trip_type"] == "round-trip" and booking_details["return_date"]:
-            print("\nSearching for Return Flights...")
             return_flights = nlp_agent.flight_agent.search_flights(
                 origin=destination_code,
                 destination=origin_code,
                 date=booking_details["return_date"]
             )
+            result_data["return_flights"] = return_flights
 
-            print("\nReturn Flight Options:")
-            result_agent.format_results(
-                flight_data=return_flights,
-                min_price=booking_details["price_min"],
-                max_price=booking_details["price_max"],
-                max_results=5
-            )
-
-        # Search hotels if hotel dates are provided
+        # Fetch hotel data if applicable
         if booking_details.get("hotel_check_in") and booking_details.get("hotel_check_out"):
-            print("\nSearching for Hotels...")
             hotel_data = nlp_agent.hotel_agent.search_hotels(
                 city_code=destination_code,
                 check_in_date=booking_details["hotel_check_in"],
                 check_out_date=booking_details["hotel_check_out"]
             )
+            result_data["hotels"] = hotel_data
 
-            if "data" in hotel_data:
-                print("\nHotel Options:")
-                result_agent.format_hotel_results(hotel_data, max_results=5)
-            else:
-                print("\nNo hotel data available.")
+        # Return successful response
+        return jsonify(result_data), 200
 
-        # Optional prompt to finalize booking
-        finalize_booking = input("\nWould you like to proceed with the booking? (yes/no): ").strip().lower()
-        if finalize_booking == "yes":
-            print("Booking confirmation feature is under development. Stay tuned!")
-        else:
-            print("Thank you for using our travel agent. Have a great day!")
+    except Exception as e:
+        # Return error details for debugging
+        return jsonify({"error": f"Internal Server Error: {str(e)}"}), 500
+
+if __name__ == "__main__":
+    # Run the Flask app in debug mode on port 5000
+    app.run(debug=True, port=5000)
