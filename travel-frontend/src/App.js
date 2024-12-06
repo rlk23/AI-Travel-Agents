@@ -13,13 +13,16 @@ const App = () => {
 
     try {
       // Replace with your API endpoint
-      const API_BASE_URL = process.env.REACT_APP_API_BASE_URL || "http://localhost:5000";
-      const response = await axios.post(`${API_BASE_URL}/api/ai-agent`, { prompt });
+      const API_BASE_URL =  "http://localhost:5001";
+      const response = await axios.post(`${API_BASE_URL}/api/ai-agent`, { prompt }, {
+        headers: { "Accept": "text/plain" }, // Specify plain text response
+        responseType: "text" // Tell axios to interpret the response as text
+      });
 
-      setResult(response.data); // Set result from backend
+      setResult(response.data); // Set the plain text result
     } catch (error) {
       console.error("Error:", error);
-      setResult({ error: "Something went wrong. Please try again." });
+      setResult("Something went wrong. Please try again.");
     } finally {
       setLoading(false);
     }
@@ -46,13 +49,9 @@ const App = () => {
       {result && (
         <div>
           <h2>Generated Results:</h2>
-          {result.error ? (
-            <p style={{ color: "red" }}>{result.error}</p>
-          ) : (
-            <pre style={{ backgroundColor: "#f4f4f4", padding: "10px", borderRadius: "5px" }}>
-              {JSON.stringify(result, null, 2)}
-            </pre>
-          )}
+          <pre style={{ backgroundColor: "#f4f4f4", padding: "10px", borderRadius: "5px" }}>
+            {result}
+          </pre>
         </div>
       )}
     </div>

@@ -1,9 +1,13 @@
 from flask import Flask, request, Response
+from flask_cors import CORS
 from agents.nlp_flight_booking_agent import NLPFlightBookingAgent
 from agents.result_compilation_agent import ResultCompilationAgent
 
 # Initialize Flask app
 app = Flask(__name__)
+
+# Enable CORS for all origins
+CORS(app)
 
 # Initialize agents
 nlp_agent = NLPFlightBookingAgent()
@@ -17,7 +21,6 @@ def ai_agent():
     # Validate the prompt
     if not user_prompt:
         return "Error: Prompt is required", 400
-
     try:
         # Process user prompt
         booking_details = nlp_agent.parse_prompt(user_prompt)
@@ -75,4 +78,4 @@ def ai_agent():
 
 if __name__ == "__main__":
     # Run the Flask app in debug mode on port 5000
-    app.run(debug=True, port=5000)
+    app.run(debug=True, port=5001)
