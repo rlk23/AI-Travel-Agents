@@ -1,9 +1,10 @@
 import React, { useState, useRef, useEffect } from "react";
-import { Box, TextField, Button, Paper, Typography } from "@mui/material";
+import { Box, TextField, Button, Paper, Typography, IconButton } from "@mui/material";
 import { styled } from "@mui/system";
 import axios from "axios";
+import MenuIcon from "@mui/icons-material/Menu";
+import Sidebar from "../Sidebar/Sidebar"; // Import Sidebar
 
-// Styled TextField for chat input
 const ChatInput = styled(TextField)(({ theme }) => ({
   "& .MuiOutlinedInput-root": {
     borderRadius: "20px",
@@ -23,6 +24,7 @@ const ChatInput = styled(TextField)(({ theme }) => ({
 const ChatWindow = () => {
   const [messages, setMessages] = useState([]);
   const [input, setInput] = useState("");
+  const [sidebarOpen, setSidebarOpen] = useState(false); // Sidebar toggle
   const chatRef = useRef(null);
 
   useEffect(() => {
@@ -61,21 +63,14 @@ const ChatWindow = () => {
     }
   };
 
+  const handleSidebarToggle = () => {
+    setSidebarOpen((prev) => !prev);
+  };
+
   return (
     <Box sx={{ display: "flex", height: "100vh", overflow: "hidden" }}>
       {/* Sidebar */}
-      <Box
-        sx={{
-          width: "20%",
-          backgroundColor: "#F3F6F9",
-          padding: "10px",
-          boxShadow: "2px 0px 5px rgba(0,0,0,0.1)",
-        }}
-      >
-        <Typography variant="h6" color="textSecondary" align="center">
-          Sidebar (Coming Soon)
-        </Typography>
-      </Box>
+      <Sidebar toggle={sidebarOpen} handleDrawerToggle={handleSidebarToggle} />
 
       {/* Main Chat Area */}
       <Box
@@ -88,6 +83,23 @@ const ChatWindow = () => {
           padding: "10px",
         }}
       >
+        {/* Chat Header */}
+        <Box
+          sx={{
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            padding: "10px",
+            borderBottom: "1px solid #E0E3E7",
+            backgroundColor: "#F3F6F9",
+          }}
+        >
+          <IconButton onClick={handleSidebarToggle}>
+            <MenuIcon />
+          </IconButton>
+          <Typography variant="h6">Chat Window</Typography>
+        </Box>
+
         {/* Chat History */}
         <Paper
           ref={chatRef}
