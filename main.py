@@ -1,4 +1,4 @@
-from flask import Flask, request, jsonify
+from flask import Flask, request, Response
 from agents.nlp_flight_booking_agent import NLPFlightBookingAgent
 from agents.result_compilation_agent import ResultCompilationAgent
 
@@ -16,7 +16,7 @@ def ai_agent():
 
     # Validate the prompt
     if not user_prompt:
-        return jsonify({"error": "Prompt is required"}), 400
+        return "Error: Prompt is required", 400
 
     try:
         # Process user prompt
@@ -28,7 +28,7 @@ def ai_agent():
 
         # Validate airport codes
         if not origin_code or not destination_code:
-            return jsonify({"error": "Invalid city names provided."}), 400
+            return "Error: Invalid city names provided.", 400
 
         # Fetch departure flights
         departure_flights = nlp_agent.flight_agent.search_flights(
@@ -37,35 +37,41 @@ def ai_agent():
             date=booking_details["depart_date"]
         )
 
-        result_data = {
-            "departure_flights": departure_flights,
-            "trip_type": booking_details["trip_type"],
-        }
+        response_text = f"Departure Flights:\n"
+        for flight in departure_flights["data"][:5]:
+            response_text += (
+                f"Flight ID: {flight['id']}\n"
+                f"  Price: {flight['price']['total']} {flight['price']['currency']}\n"
+                f"  Departure: {flight['itineraries'][0]['segments'][0]['departure']['iataCode']} "
+                f"({flight['itineraries'][0]['segments'][0]['departure']['at']})\n"
+                f"  Arrival: {flight['itineraries'][0]['segments'][-1]['arrival']['iataCode']} "
+                f"({flight['itineraries'][0]['segments'][-1]['arrival']['at']})\n"
+                f"  Duration: {flight['itineraries'][0]['duration']}\n"
+            )
 
-        # Fetch return flights for round-trip
-        if booking_details["trip_type"] == "round-trip" and booking_details["return_date"]:
+        # Handle round-trip flights
+        if booking_details["trip_type"] == "round-trip" and booking_details.get("return_date"):
             return_flights = nlp_agent.flight_agent.search_flights(
                 origin=destination_code,
                 destination=origin_code,
                 date=booking_details["return_date"]
             )
-            result_data["return_flights"] = return_flights
+            response_text += "\nReturn Flights:\n"
+            for flight in return_flights["data"][:5]:
+                response_text += (
+                    f"Flight ID: {flight['id']}\n"
+                    f"  Price: {flight['price']['total']} {flight['price']['currency']}\n"
+                    f"  Departure: {flight['itineraries'][0]['segments'][0]['departure']['iataCode']} "
+                    f"({flight['itineraries'][0]['segments'][0]['departure']['at']})\n"
+                    f"  Arrival: {flight['itineraries'][0]['segments'][-1]['arrival']['iataCode']} "
+                    f"({flight['itineraries'][0]['segments'][-1]['arrival']['at']})\n"
+                    f"  Duration: {flight['itineraries'][0]['duration']}\n"
+                )
 
-        # Fetch hotel data if applicable
-        if booking_details.get("hotel_check_in") and booking_details.get("hotel_check_out"):
-            hotel_data = nlp_agent.hotel_agent.search_hotels(
-                city_code=destination_code,
-                check_in_date=booking_details["hotel_check_in"],
-                check_out_date=booking_details["hotel_check_out"]
-            )
-            result_data["hotels"] = hotel_data
-
-        # Return successful response
-        return jsonify(result_data), 200
+        return Response(response_text, mimetype="text/plain"), 200
 
     except Exception as e:
-        # Return error details for debugging
-        return jsonify({"error": f"Internal Server Error: {str(e)}"}), 500
+        return f"Internal Server Error: {str(e)}", 500
 
 if __name__ == "__main__":
     # Run the Flask app in debug mode on port 5000
