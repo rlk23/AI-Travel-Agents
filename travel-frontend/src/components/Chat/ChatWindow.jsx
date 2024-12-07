@@ -3,7 +3,6 @@ import { Box, TextField, Button, Paper, Typography, IconButton } from "@mui/mate
 import { styled } from "@mui/system";
 import axios from "axios";
 import MenuIcon from "@mui/icons-material/Menu";
-import Sidebar from "../Sidebar/Sidebar"; // Import Sidebar
 
 const ChatInput = styled(TextField)(({ theme }) => ({
   "& .MuiOutlinedInput-root": {
@@ -24,7 +23,6 @@ const ChatInput = styled(TextField)(({ theme }) => ({
 const ChatWindow = () => {
   const [messages, setMessages] = useState([]);
   const [input, setInput] = useState("");
-  const [sidebarOpen, setSidebarOpen] = useState(false); // Sidebar toggle
   const chatRef = useRef(null);
 
   useEffect(() => {
@@ -63,15 +61,8 @@ const ChatWindow = () => {
     }
   };
 
-  const handleSidebarToggle = () => {
-    setSidebarOpen((prev) => !prev);
-  };
-
   return (
     <Box sx={{ display: "flex", height: "100vh", overflow: "hidden" }}>
-      {/* Sidebar */}
-      <Sidebar toggle={sidebarOpen} handleDrawerToggle={handleSidebarToggle} />
-
       {/* Main Chat Area */}
       <Box
         sx={{
@@ -94,9 +85,6 @@ const ChatWindow = () => {
             backgroundColor: "#F3F6F9",
           }}
         >
-          <IconButton onClick={handleSidebarToggle}>
-            <MenuIcon />
-          </IconButton>
           <Typography variant="h6">Chat Window</Typography>
         </Box>
 

@@ -1,13 +1,21 @@
 import React from "react";
+import { useNavigate } from "react-router-dom";
 import { Box, Toolbar, Divider, List, ListItem, ListItemButton, ListItemIcon, ListItemText, Typography } from "@mui/material";
-
 import InboxIcon from "@mui/icons-material/MoveToInbox";
 import MailIcon from "@mui/icons-material/Mail";
 
 const drawerWidth = 240;
 
 const Sidebar = ({ toggle, handleDrawerToggle }) => {
-  const menuItems = ["Chat","Booking","Itinerary","Calendar","Settings"];
+  const menuItems = [
+    { text: "Chat", path: "/" },
+    { text: "Booking", path: "../pages/booking" },
+    { text: "Itinerary", path: "../pages/itinerary" },
+    { text: "Calendar", path: "../pages/calendar" },
+    { text: "Settings", path: "../pages/settings" },
+  ];
+
+  const navigate = useNavigate();
 
   return (
     <Box
@@ -22,19 +30,21 @@ const Sidebar = ({ toggle, handleDrawerToggle }) => {
         height: "100vh",
       }}
     >
-      {/* Sidebar Header */}
       <Toolbar>
         <Typography variant="h6" sx={{ flexGrow: 1, textAlign: "center" }}>
           Sidebar
         </Typography>
       </Toolbar>
       <Divider />
-
-      {/* Sidebar Menu */}
       <List>
-        {menuItems.map((text, index) => (
+        {menuItems.map(({ text, path }, index) => (
           <ListItem key={text} disablePadding>
-            <ListItemButton onClick={handleDrawerToggle}>
+            <ListItemButton
+              onClick={() => {
+                navigate(path);
+                handleDrawerToggle();
+              }}
+            >
               <ListItemIcon>
                 {index % 2 === 0 ? <InboxIcon /> : <MailIcon />}
               </ListItemIcon>
