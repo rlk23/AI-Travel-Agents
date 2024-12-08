@@ -5,7 +5,7 @@ import Sidebar from "./components/Sidebar/Sidebar";
 import ChatWindow from "./components/Chat/ChatWindow";
 import Booking from "./pages/booking"; 
 import Itinerary from "./pages/itinerary";
-import CalendarPage from "./pages/CalendarPage"; // Import the corrected CalendarPage component
+import CalendarPage from "./pages/CalendarPage"; 
 import Settings from "./pages/Settings";
 
 const App = () => {
@@ -22,7 +22,12 @@ const App = () => {
         <Sidebar toggle={sidebarOpen} handleDrawerToggle={handleSidebarToggle} />
 
         {/* Main Content Area */}
-        <Box sx={{ flexGrow: 1 }}>
+        <Box
+          sx={{
+            flexGrow: 1,
+            overflowY: "auto",
+          }}
+        >
           <Routes>
             <Route path="/" element={<ChatWindow />} />
             <Route path="/booking" element={<Booking />} />

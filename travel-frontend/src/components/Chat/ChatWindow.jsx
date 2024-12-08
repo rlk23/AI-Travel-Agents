@@ -3,6 +3,7 @@ import { Box, TextField, Button, Typography, Paper } from "@mui/material";
 import { styled } from "@mui/system";
 import axios from "axios";
 
+// Styled TextField for chat input
 const ChatInput = styled(TextField)(({ theme }) => ({
   "& .MuiOutlinedInput-root": {
     borderRadius: "20px",
@@ -24,12 +25,23 @@ const ChatWindow = () => {
   const [input, setInput] = useState("");
   const chatRef = useRef(null);
 
-  // Scroll to the latest message
   useEffect(() => {
     if (chatRef.current) {
       chatRef.current.scrollTop = chatRef.current.scrollHeight;
     }
   }, [messages]);
+
+  // Format flights for display
+  const formatFlights = (flights, type) =>
+    flights
+      .map(
+        (flight, index) =>
+          `${type} Flight ${index + 1}:\n` +
+          `  Price: ${flight.price.total} ${flight.price.currency}\n` +
+          `  Departure: ${flight.departure}\n` +
+          `  Arrival: ${flight.arrival}\n`
+      )
+      .join("\n");
 
   const handleSend = async () => {
     if (input.trim()) {
@@ -43,7 +55,21 @@ const ChatWindow = () => {
           prompt: input.trim(),
         });
 
-        const botMessage = formatFlightResponse(response.data);
+        const { departure_flights, return_flights } = response.data;
+
+        const formattedDepartureFlights = formatFlights(
+          departure_flights,
+          "Departure"
+        );
+        const formattedReturnFlights = formatFlights(
+          return_flights,
+          "Return"
+        );
+
+        const botMessage = {
+          text: `Here are the results:\n\n${formattedDepartureFlights}\n${formattedReturnFlights}`,
+          sender: "bot",
+        };
         setMessages((prev) => [...prev, botMessage]);
       } catch (error) {
         const errorMessage = {
@@ -55,41 +81,6 @@ const ChatWindow = () => {
     }
   };
 
-  const formatFlightResponse = (data) => {
-    if (data.error) {
-      return { text: data.error, sender: "bot" };
-    }
-
-    let text = "Here are the available flights:\n\n";
-    if (data.departure_flights?.length > 0) {
-      text += "Departure Flights:\n";
-      data.departure_flights.forEach((flight, index) => {
-        text += `  Flight ${index + 1}:\n`;
-        text += `    Price: ${flight.price} ${flight.currency}\n`;
-        text += `    Departure: ${flight.departure_code} at ${flight.departure_time}\n`;
-        text += `    Arrival: ${flight.arrival_code} at ${flight.arrival_time}\n`;
-        text += `    Duration: ${flight.duration}\n\n`;
-      });
-    } else {
-      text += "No departure flights available.\n";
-    }
-
-    if (data.return_flights?.length > 0) {
-      text += "Return Flights:\n";
-      data.return_flights.forEach((flight, index) => {
-        text += `  Flight ${index + 1}:\n`;
-        text += `    Price: ${flight.price} ${flight.currency}\n`;
-        text += `    Departure: ${flight.departure_code} at ${flight.departure_time}\n`;
-        text += `    Arrival: ${flight.arrival_code} at ${flight.arrival_time}\n`;
-        text += `    Duration: ${flight.duration}\n\n`;
-      });
-    } else {
-      text += "No return flights available.\n";
-    }
-
-    return { text, sender: "bot" };
-  };
-
   const handleKeyDown = (e) => {
     if (e.key === "Enter" && !e.shiftKey) {
       e.preventDefault();
@@ -98,8 +89,16 @@ const ChatWindow = () => {
   };
 
   return (
-    <Box sx={{ display: "flex", height: "100vh", overflow: "hidden", flexDirection: "column" }}>
-      {/* Chat History */}
+    <Box
+      sx={{
+        height: "100vh",
+        display: "flex",
+        flexDirection: "column",
+        padding: "10px",
+        backgroundColor: "#FFFFFF",
+      }}
+    >
+      {/* Chat Messages */}
       <Paper
         ref={chatRef}
         elevation={3}
@@ -108,6 +107,8 @@ const ChatWindow = () => {
           overflowY: "auto",
           padding: "10px",
           backgroundColor: "#f4f4f4",
+          borderRadius: "10px",
+          marginBottom: "10px",
         }}
       >
         {messages.map((msg, index) => (
@@ -141,9 +142,11 @@ const ChatWindow = () => {
       <Box
         sx={{
           display: "flex",
+          alignItems: "center",
+          gap: "10px",
           padding: "10px",
           backgroundColor: "#ffffff",
-          boxShadow: "0 -2px 5px rgba(0, 0, 0, 0.2)",
+          borderTop: "1px solid #E0E3E7",
         }}
       >
         <ChatInput
