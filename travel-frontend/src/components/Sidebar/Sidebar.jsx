@@ -9,10 +9,10 @@ const drawerWidth = 240;
 const Sidebar = ({ toggle, handleDrawerToggle }) => {
   const menuItems = [
     { text: "Chat", path: "/" },
-    { text: "Booking", path: "../pages/booking" },
-    { text: "Itinerary", path: "../pages/itinerary" },
-    { text: "Calendar", path: "../pages/calendar" },
-    { text: "Settings", path: "../pages/settings" },
+    { text: "Booking", path: "/booking" },
+    { text: "Itinerary", path: "/itinerary" },
+    { text: "Calendar", path: "/calendar" },
+    { text: "Settings", path: "/settings" },
   ];
 
   const navigate = useNavigate();
@@ -41,7 +41,7 @@ const Sidebar = ({ toggle, handleDrawerToggle }) => {
           <ListItem key={text} disablePadding>
             <ListItemButton
               onClick={() => {
-                navigate(path);
+                navigate(path); // Navigate to the correct route
                 handleDrawerToggle();
               }}
             >

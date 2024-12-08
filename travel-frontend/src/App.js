@@ -5,7 +5,7 @@ import Sidebar from "./components/Sidebar/Sidebar";
 import ChatWindow from "./components/Chat/ChatWindow";
 import Booking from "./pages/booking"; 
 import Itinerary from "./pages/itinerary";
-import Calendar from "./pages/calendar";
+import CalendarPage from "./pages/CalendarPage"; // Import the corrected CalendarPage component
 import Settings from "./pages/Settings";
 
 const App = () => {
@@ -25,10 +25,10 @@ const App = () => {
         <Box sx={{ flexGrow: 1 }}>
           <Routes>
             <Route path="/" element={<ChatWindow />} />
-            <Route path="../pages/booking" element={<Booking />} />
-            <Route path="../pages/itinerary" element={<Itinerary />} />
-            <Route path="../pages/calendar" element={<Calendar />} />
-            <Route path="../pages/settings" element={<Settings />} />
+            <Route path="/booking" element={<Booking />} />
+            <Route path="/itinerary" element={<Itinerary />} />
+            <Route path="/calendar" element={<CalendarPage />} />
+            <Route path="/settings" element={<Settings />} />
           </Routes>
         </Box>
       </Box>
