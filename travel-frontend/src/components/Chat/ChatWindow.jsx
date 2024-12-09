@@ -33,15 +33,33 @@ const ChatWindow = () => {
 
   // Format flights for display
   const formatFlights = (flights, type) =>
-    flights
-      .map(
-        (flight, index) =>
-          `${type} Flight ${index + 1}:\n` +
-          `  Price: ${flight.price.total} ${flight.price.currency}\n` +
-          `  Departure: ${flight.departure}\n` +
-          `  Arrival: ${flight.arrival}\n`
-      )
-      .join("\n");
+    flights.length
+      ? flights
+          .map(
+            (flight, index) =>
+              `${type} Flight ${index + 1}:\n` +
+              `  Price: ${flight.price} ${flight.currency}\n` +
+              `  Departure: ${flight.departure_code} at ${flight.departure_time}\n` +
+              `  Arrival: ${flight.arrival_code} at ${flight.arrival_time}\n` +
+              `  Duration: ${flight.duration}\n`
+          )
+          .join("\n")
+      : `No ${type.toLowerCase()} flights available.`;
+
+  // Format hotels for display
+  const formatHotels = (hotels) =>
+    hotels.length
+      ? hotels
+          .map(
+            (hotel, index) =>
+              `Hotel ${index + 1}:\n` +
+              `  Name: ${hotel.hotel_name}\n` +
+              `  Price: ${hotel.price} ${hotel.currency}\n` +
+              `  Check-in: ${hotel.check_in}\n` +
+              `  Check-out: ${hotel.check_out}\n`
+          )
+          .join("\n")
+      : "No hotels available.";
 
   const handleSend = async () => {
     if (input.trim()) {
@@ -55,19 +73,20 @@ const ChatWindow = () => {
           prompt: input.trim(),
         });
 
-        const { departure_flights, return_flights } = response.data;
+        const { departure_flights, return_flights, hotels } = response.data;
 
         const formattedDepartureFlights = formatFlights(
           departure_flights,
           "Departure"
         );
         const formattedReturnFlights = formatFlights(
-          return_flights,
+          return_flights || [],
           "Return"
         );
+        const formattedHotels = formatHotels(hotels || []);
 
         const botMessage = {
-          text: `Here are the results:\n\n${formattedDepartureFlights}\n${formattedReturnFlights}`,
+          text: `Here are the results:\n\n${formattedDepartureFlights}\n\n${formattedReturnFlights}\n\nHotels:\n${formattedHotels}`,
           sender: "bot",
         };
         setMessages((prev) => [...prev, botMessage]);
