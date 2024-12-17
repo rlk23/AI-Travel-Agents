@@ -1,21 +1,21 @@
 ## 🛠 Installation & Set Up
 
-1. Install the Gatsby CLI
+1. Install the dependencies
 
    ```sh
-   npm install -g gatsby-cli
-   ```
+    #### MACOS / LINUX SPECIFIC ####
+   python3 -m venv .venv
+   source .venv/bin/activate
+   ################################
 
-2. Install and use the correct version of Node using [NVM](https://github.com/nvm-sh/nvm)
+   pip3 install -r requirements.txt
+
+
+3. Install Frontend
 
    ```sh
-   nvm install
-   ```
-
-3. Install dependencies
-
-   ```sh
-   npm i
+   npm install
+   
    ```
 
 4. Start the development server
