@@ -1,16 +1,15 @@
 import spacy
 import re
 from datetime import datetime
+from dateutil import parser
 from .city_to_airport_agent import CityToAirportAgent
 from .flight_search_agent import FlightSearchAgent
-from .hotel_search_agent import HotelSearchAgent
 
 
 class NLPFlightBookingAgent:
     def __init__(self):
         self.city_agent = CityToAirportAgent()
         self.flight_agent = FlightSearchAgent(self.city_agent.access_token)
-        self.hotel_agent = HotelSearchAgent(self.city_agent.access_token)
         self.nlp = spacy.load("en_core_web_sm")
 
     def parse_prompt(self, prompt):
@@ -23,9 +22,6 @@ class NLPFlightBookingAgent:
             "trip_type": "one-way",
             "price_min": None,
             "price_max": None,
-            "hotel_check_in": None,
-            "hotel_check_out": None,
-            "hotel_preferences": None
         }
 
         # Extract cities
@@ -36,24 +32,8 @@ class NLPFlightBookingAgent:
         elif len(gpe_entities) == 1:
             entities["origin"] = gpe_entities[0]
 
-        # Extract dates
-        date_pattern = r"\d{4}-\d{2}-\d{2}"
-        dates = re.findall(date_pattern, prompt)
-        if len(dates) >= 1:
-            entities["depart_date"] = dates[0]
-        if len(dates) >= 2:
-            entities["return_date"] = dates[1]
-            entities["trip_type"] = "round-trip"
-        if len(dates) >= 3:
-            entities["hotel_check_in"] = dates[2]
-        if len(dates) >= 4:
-            entities["hotel_check_out"] = dates[3]
-
-        # Extract hotel preferences
-        if "hotel" in prompt:
-            preferences = re.search(r"hotel.*?(near|budget|type):\s*(.*)", prompt)
-            if preferences:
-                entities["hotel_preferences"] = preferences.group(2)
+        # Extract and validate dates
+        entities = self.extract_dates(prompt, entities)
 
         # Extract prices
         price_context = re.search(r"(price|between|range).*?(\d+).*?[-toand]+\s*(\d+)", prompt)
@@ -61,104 +41,118 @@ class NLPFlightBookingAgent:
             entities["price_min"] = float(price_context.group(2))
             entities["price_max"] = float(price_context.group(3))
 
+        # Debugging: Display parsed booking details
         print("Parsed Booking Details:", entities)
         return entities
 
-    def book_flight_and_hotel(self, prompt):
+    def extract_dates(self, prompt, entities):
+        """
+        Extract and parse multiple date formats using flexible parsing.
+        """
+        today = datetime.today()
+        possible_dates = []
+
+        # Use dateutil.parser to extract flexible dates
+        for word in prompt.split():
+            try:
+                parsed_date = parser.parse(word, fuzzy=True)
+                # Filter out past dates and unreasonable years
+                if parsed_date >= today and 1900 <= parsed_date.year <= 2100:
+                    possible_dates.append(parsed_date)
+            except (ValueError, TypeError):
+                continue
+
+        # Remove duplicate dates
+        unique_dates = list(sorted(set(possible_dates)))
+
+        # Debugging: Display extracted dates
+        print("Filtered Dates:", [date.strftime("%Y-%m-%d") for date in unique_dates])
+
+        # Assign dates to entities
+        if len(unique_dates) >= 1:
+            entities["depart_date"] = unique_dates[0].strftime("%Y-%m-%d")
+        if len(unique_dates) >= 2:
+            entities["return_date"] = unique_dates[1].strftime("%Y-%m-%d")
+            entities["trip_type"] = "round-trip"
+
+        # Validate extracted dates
+        entities = self.validate_dates(entities, today)
+
+        return entities
+
+    def validate_dates(self, entities, today):
+        """
+        Validate the extracted dates to ensure they are logical.
+        """
+        if entities["depart_date"]:
+            depart_date = datetime.strptime(entities["depart_date"], "%Y-%m-%d")
+            if depart_date < today:
+                print(f"Invalid depart_date: {entities['depart_date']} (Date is in the past)")
+                entities["depart_date"] = None
+
+        if entities["return_date"]:
+            return_date = datetime.strptime(entities["return_date"], "%Y-%m-%d")
+            if return_date < today:
+                print(f"Invalid return_date: {entities['return_date']} (Date is in the past)")
+                entities["return_date"] = None
+            elif entities["depart_date"]:
+                depart_date = datetime.strptime(entities["depart_date"], "%Y-%m-%d")
+                if return_date <= depart_date:
+                    print(f"Invalid return_date: {entities['return_date']} (Return date must be after depart_date)")
+                    entities["return_date"] = None
+
+        return entities
+
+    def book_flight(self, prompt):
+        """
+        Book flights based on extracted booking details.
+        """
         booking_details = self.parse_prompt(prompt)
+
+        # Get airport codes
         origin_code = self.city_agent.city_to_airport_code(booking_details["origin"])
         destination_code = self.city_agent.city_to_airport_code(booking_details["destination"])
 
         if not origin_code or not destination_code:
-            print("Unable to retrieve airport codes. Please check the city names and try again.")
-            return
+            print("Invalid city names. Unable to fetch airport codes.")
+            return {"error": "Invalid city names"}
 
-        # Flight Booking
-        print("\nBooking Flights...")
+        # Book departure flight
+        print("\nFetching Departure Flights...")
         departure_flights = self.flight_agent.search_flights(
             origin_code,
             destination_code,
             booking_details["depart_date"]
         )
-        print("\nDeparture Flight Options:")
-        self.format_results(departure_flights, booking_details["price_min"], booking_details["price_max"])
 
+        # Debugging: Display departure flights
+        print("Departure Flights:", departure_flights)
+
+        # Book return flight if applicable
         if booking_details["trip_type"] == "round-trip" and booking_details["return_date"]:
+            print("\nFetching Return Flights...")
             return_flights = self.flight_agent.search_flights(
                 destination_code,
                 origin_code,
                 booking_details["return_date"]
             )
-            print("\nReturn Flight Options:")
-            self.format_results(return_flights, booking_details["price_min"], booking_details["price_max"])
+            # Debugging: Display return flights
+            print("Return Flights:", return_flights)
 
-        # Hotel Booking
-        if booking_details.get("hotel_check_in") and booking_details.get("hotel_check_out"):
-            print(f"Hotel Search: destination_code={destination_code}, check_in_date={booking_details['hotel_check_in']}, check_out_date={booking_details['hotel_check_out']}")
-            
-            print("\nBooking Hotels...")
-            hotel_data = self.hotel_agent.search_hotels(
-                destination_code,
-                booking_details["hotel_check_in"],
-                booking_details["hotel_check_out"]
-            )
-            print("\nHotel Options:")
-            self.format_hotel_results(hotel_data)
-
-
-    def format_results(self, flight_data, min_price=None, max_price=None, max_results=5):
-        if "data" not in flight_data or not flight_data["data"]:
+    def format_results(self, flight_data):
+        """
+        Format flight data for readability.
+        """
+        if not flight_data or "data" not in flight_data:
             print("No flight data available.")
-            return
+            return []
 
-        filtered_flights = [
-            flight for flight in flight_data["data"]
-            if (min_price is None or float(flight["price"]["total"]) >= min_price) and
-               (max_price is None or float(flight["price"]["total"]) <= max_price)
-        ]
-
-        if filtered_flights:
-            print("\nFiltered Flight Options:")
-            for flight in filtered_flights[:max_results]:
-                self.display_flight(flight)
-        else:
-            print("\nNo flights found within the specified price range.")
-            print("Displaying the top available flights:")
-            for flight in flight_data["data"][:max_results]:
-                self.display_flight(flight)
-
-    def display_flight(self, flight):
-        print(f"Flight ID: {flight['id']}")
-        print(f"Price: {flight['price']['currency']} {flight['price']['total']}")
-        for itinerary in flight["itineraries"]:
-            print(f"  Duration: {itinerary['duration']}")
-            for segment in itinerary["segments"]:
-                print(f"    {segment['carrierCode']} {segment['number']}: "
-                      f"{segment['departure']['iataCode']} -> {segment['arrival']['iataCode']}")
-                print(f"    Departure: {segment['departure']['at']}, Arrival: {segment['arrival']['at']}")
-        print("-" * 50)
-
-    def format_hotel_results(self, hotel_data, max_results=5):
-        """
-        Format and display hotel results from the Amadeus API response.
-        """
-        if "data" not in hotel_data or not hotel_data["data"]:
-            print("No hotel data available.")
-            return
-
-        print("\nAvailable Hotels:")
-        for hotel in hotel_data["data"][:max_results]:
-            hotel_name = hotel["hotel"]["name"] if "name" in hotel["hotel"] else "N/A"
-            price_details = hotel["offers"][0]["price"] if "offers" in hotel and hotel["offers"] else {}
-            currency = price_details.get("currency", "USD")
-            total_price = price_details.get("total", "N/A")
-
-            print(f"Hotel Name: {hotel_name}")
-            print(f"Price: {currency} {total_price}")
-            check_in = hotel["offers"][0].get("checkInDate", "N/A")
-            check_out = hotel["offers"][0].get("checkOutDate", "N/A")
-            print(f"Check-in: {check_in}, Check-out: {check_out}")
+        for flight in flight_data["data"]:
+            print(f"Flight ID: {flight['id']} | Price: {flight['price']['total']} {flight['price']['currency']}")
+            for itinerary in flight["itineraries"]:
+                print(f"Duration: {itinerary['duration']}")
+                for segment in itinerary["segments"]:
+                    print(f"  {segment['carrierCode']} {segment['number']}: "
+                          f"{segment['departure']['iataCode']} -> {segment['arrival']['iataCode']}")
+                    print(f"  Departure: {segment['departure']['at']}, Arrival: {segment['arrival']['at']}")
             print("-" * 50)
-
-
-
