@@ -1,99 +1,77 @@
 import React, { useState } from "react";
-import {
-  Box,
-  Typography,
-  Drawer,
-  List,
-  ListItem,
-  ListItemText,
-  Toolbar,
-  Divider,
-  Button,
-} from "@mui/material";
-import { Routes, Route, Link } from "react-router-dom";
+import { AppBar, Toolbar, Tabs, Tab, Box, Typography, Button } from "@mui/material";
+import { Routes, Route, Link, useNavigate } from "react-router-dom";
 import AccountSettings from "./Setting/AccountSettings";
 import Preferences from "./Setting/Preferences";
 import Notifications from "./Setting/Notifications";
 
 const Settings = () => {
-  const [notificationsEnabled, setNotificationsEnabled] = useState(true);
-  const [darkModeEnabled, setDarkModeEnabled] = useState(false);
-  const [email, setEmail] = useState("");
+  const navigate = useNavigate();
+  const [tabIndex, setTabIndex] = useState(0); // Track the selected tab
 
-  const menuItems = [
-    { label: "Account Settings", path: "account" },
-    { label: "Preferences", path: "preferences" },
-    { label: "Notifications", path: "notifications" },
-  ];
+  const handleTabChange = (event, newValue) => {
+    setTabIndex(newValue);
+
+    // Navigate to the appropriate route
+    if (newValue === 0) navigate("account");
+    else if (newValue === 1) navigate("preferences");
+    else if (newValue === 2) navigate("notifications");
+  };
 
   return (
-    <Box sx={{ display: "flex" }}>
-      {/* Sidebar */}
-      <Drawer
-        variant="permanent"
-        sx={{
-          width: 240,
-          flexShrink: 0,
-          "& .MuiDrawer-paper": {
-            width: 240,
-            boxSizing: "border-box",
-          },
-        }}
-      >
-        <Toolbar />
-        <List>
-          {menuItems.map((item, index) => (
-            <ListItem button key={index} component={Link} to={item.path}>
-              <ListItemText primary={item.label} />
-            </ListItem>
-          ))}
-        </List>
-      </Drawer>
+    <Box sx={{ flexGrow: 1 }}>
+      {/* Top Navigation Bar */}
+      <AppBar position="static" color="primary">
+        <Toolbar>
+          <Typography variant="h6" sx={{ flexGrow: 1 }}>
+            Settings
+          </Typography>
+        </Toolbar>
+        <Tabs
+          value={tabIndex}
+          onChange={handleTabChange}
+          centered
+          textColor="inherit"
+          indicatorColor="secondary"
+        >
+          <Tab label="Account Settings" />
+          <Tab label="Preferences" />
+          <Tab label="Notifications" />
+        </Tabs>
+      </AppBar>
 
-      {/* Main Content */}
+      {/* Content Area */}
       <Box
-        component="main"
         sx={{
-          flexGrow: 1,
           p: 3,
+          minHeight: "calc(100vh - 64px)", // Adjust for the AppBar height
           backgroundColor: "#f9f9f9",
-          minHeight: "100vh",
         }}
       >
-        <Toolbar />
-        <Typography variant="h4" sx={{ mb: 4 }}>
-          Settings
-        </Typography>
-
-        {/* Routing for different settings sections */}
         <Routes>
           <Route
             path="account"
-            element={<AccountSettings email={email} setEmail={setEmail} />}
+            element={<AccountSettings email="" setEmail={() => {}} />}
           />
           <Route
             path="preferences"
             element={
-              <Preferences
-                darkModeEnabled={darkModeEnabled}
-                setDarkModeEnabled={setDarkModeEnabled}
-              />
+              <Preferences darkModeEnabled={false} setDarkModeEnabled={() => {}} />
             }
           />
           <Route
             path="notifications"
             element={
               <Notifications
-                notificationsEnabled={notificationsEnabled}
-                setNotificationsEnabled={setNotificationsEnabled}
+                notificationsEnabled={true}
+                setNotificationsEnabled={() => {}}
               />
             }
           />
         </Routes>
 
-        <Divider sx={{ my: 4 }} />
-
-        <Box sx={{ display: "flex", justifyContent: "flex-end" }}>
+        {/* Save Changes Button */}
+        <Box sx={{ display: "flex", justifyContent: "flex-end", mt: 4 }}>
           <Button variant="contained" color="primary">
             Save Changes
           </Button>
