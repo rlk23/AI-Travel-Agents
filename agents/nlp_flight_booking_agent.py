@@ -1,96 +1,64 @@
-import spacy
-import re
+from langchain_openai import ChatOpenAI
+from langchain.prompts import PromptTemplate
 from datetime import datetime
-from dateutil import parser
 from .city_to_airport_agent import CityToAirportAgent
 from .flight_search_agent import FlightSearchAgent
+from .load_environement import chatgpt_api_key
+import json
 
 
 class NLPFlightBookingAgent:
     def __init__(self):
         self.city_agent = CityToAirportAgent()
         self.flight_agent = FlightSearchAgent(self.city_agent.access_token)
-        self.nlp = spacy.load("en_core_web_sm")
+        self.llm = ChatOpenAI(model="gpt-4", openai_api_key=chatgpt_api_key)
 
     def parse_prompt(self, prompt):
-        doc = self.nlp(prompt)
-        entities = {
-            "origin": None,
-            "destination": None,
-            "depart_date": None,
-            "return_date": None,
-            "trip_type": "one-way",
-            "price_min": None,
-            "price_max": None,
-        }
-
-        # Extract cities
-        gpe_entities = [ent.text for ent in doc.ents if ent.label_ == "GPE"]
-        if len(gpe_entities) >= 2:
-            entities["origin"] = gpe_entities[0]
-            entities["destination"] = gpe_entities[1]
-        elif len(gpe_entities) == 1:
-            entities["origin"] = gpe_entities[0]
-
-        # Extract and validate dates
-        entities = self.extract_dates(prompt, entities)
-
-        # Extract prices
-        price_context = re.search(r"(price|between|range).*?(\d+).*?[-toand]+\s*(\d+)", prompt)
-        if price_context:
-            entities["price_min"] = float(price_context.group(2))
-            entities["price_max"] = float(price_context.group(3))
-
-        # Debugging: Display parsed booking details
-        print("Parsed Booking Details:", entities)
-        return entities
-
-    def extract_dates(self, prompt, entities):
         """
-        Extract and parse multiple date formats using flexible parsing.
+        Parse the user input using LangChain and extract required booking details.
+        """
+        # Define the template
+        template = """
+        Extract the following information from the input:
+        - Origin city
+        - Destination city
+        - Departure date (yyyy-mm-dd format)
+        - Return date (yyyy-mm-dd format, if mentioned)
+        - Trip type (one-way or round-trip)
+        - Minimum price range (if mentioned)
+        - Maximum price range (if mentioned)
+
+        Input: {prompt}
+
+        Output the result as a JSON object.
+        """
+        # Format the prompt
+        prompt_template = PromptTemplate(input_variables=["prompt"], template=template)
+        formatted_prompt = prompt_template.format_prompt(prompt=prompt).to_string()
+
+        try:
+            # Send the prompt to the LLM
+            response = self.llm.invoke(formatted_prompt)
+            # Extract content and parse JSON
+            parsed_response = json.loads(response.content)
+            print("Parsed Response:", json.dumps(parsed_response, indent=4))
+            return parsed_response
+        except Exception as e:
+            print(f"Error processing LLM response: {e}")
+            raise ValueError("Failed to process the prompt.")
+
+    def validate_dates(self, entities):
+        """
+        Validate and correct extracted dates to ensure they are logical.
         """
         today = datetime.today()
-        possible_dates = []
-
-        # Use dateutil.parser to extract flexible dates
-        for word in prompt.split():
-            try:
-                parsed_date = parser.parse(word, fuzzy=True)
-                # Filter out past dates and unreasonable years
-                if parsed_date >= today and 1900 <= parsed_date.year <= 2100:
-                    possible_dates.append(parsed_date)
-            except (ValueError, TypeError):
-                continue
-
-        # Remove duplicate dates
-        unique_dates = list(sorted(set(possible_dates)))
-
-        # Debugging: Display extracted dates
-        print("Filtered Dates:", [date.strftime("%Y-%m-%d") for date in unique_dates])
-
-        # Assign dates to entities
-        if len(unique_dates) >= 1:
-            entities["depart_date"] = unique_dates[0].strftime("%Y-%m-%d")
-        if len(unique_dates) >= 2:
-            entities["return_date"] = unique_dates[1].strftime("%Y-%m-%d")
-            entities["trip_type"] = "round-trip"
-
-        # Validate extracted dates
-        entities = self.validate_dates(entities, today)
-
-        return entities
-
-    def validate_dates(self, entities, today):
-        """
-        Validate the extracted dates to ensure they are logical.
-        """
-        if entities["depart_date"]:
+        if "depart_date" in entities and entities["depart_date"]:
             depart_date = datetime.strptime(entities["depart_date"], "%Y-%m-%d")
             if depart_date < today:
                 print(f"Invalid depart_date: {entities['depart_date']} (Date is in the past)")
                 entities["depart_date"] = None
 
-        if entities["return_date"]:
+        if "return_date" in entities and entities["return_date"]:
             return_date = datetime.strptime(entities["return_date"], "%Y-%m-%d")
             if return_date < today:
                 print(f"Invalid return_date: {entities['return_date']} (Date is in the past)")
@@ -100,59 +68,44 @@ class NLPFlightBookingAgent:
                 if return_date <= depart_date:
                     print(f"Invalid return_date: {entities['return_date']} (Return date must be after depart_date)")
                     entities["return_date"] = None
-
         return entities
 
     def book_flight(self, prompt):
         """
         Book flights based on extracted booking details.
         """
+        # Extract entities from user prompt
         booking_details = self.parse_prompt(prompt)
 
+        # Validate dates
+        booking_details = self.validate_dates(booking_details)
+
         # Get airport codes
-        origin_code = self.city_agent.city_to_airport_code(booking_details["origin"])
-        destination_code = self.city_agent.city_to_airport_code(booking_details["destination"])
+        origin_code = self.city_agent.city_to_airport_code(booking_details.get("Origin city"))
+        destination_code = self.city_agent.city_to_airport_code(booking_details.get("Destination city"))
 
         if not origin_code or not destination_code:
-            print("Invalid city names. Unable to fetch airport codes.")
-            return {"error": "Invalid city names"}
+            return {"error": "Invalid city names or airport codes could not be retrieved"}
 
-        # Book departure flight
-        print("\nFetching Departure Flights...")
+        # Fetch departure flights
         departure_flights = self.flight_agent.search_flights(
             origin_code,
             destination_code,
-            booking_details["depart_date"]
+            booking_details.get("Departure date")
         )
 
-        # Debugging: Display departure flights
-        print("Departure Flights:", departure_flights)
-
-        # Book return flight if applicable
-        if booking_details["trip_type"] == "round-trip" and booking_details["return_date"]:
-            print("\nFetching Return Flights...")
+        # Fetch return flights (if applicable)
+        return_flights = None
+        if booking_details.get("Trip type") == "round-trip" and booking_details.get("Return date"):
             return_flights = self.flight_agent.search_flights(
                 destination_code,
                 origin_code,
-                booking_details["return_date"]
+                booking_details.get("Return date")
             )
-            # Debugging: Display return flights
-            print("Return Flights:", return_flights)
 
-    def format_results(self, flight_data):
-        """
-        Format flight data for readability.
-        """
-        if not flight_data or "data" not in flight_data:
-            print("No flight data available.")
-            return []
-
-        for flight in flight_data["data"]:
-            print(f"Flight ID: {flight['id']} | Price: {flight['price']['total']} {flight['price']['currency']}")
-            for itinerary in flight["itineraries"]:
-                print(f"Duration: {itinerary['duration']}")
-                for segment in itinerary["segments"]:
-                    print(f"  {segment['carrierCode']} {segment['number']}: "
-                          f"{segment['departure']['iataCode']} -> {segment['arrival']['iataCode']}")
-                    print(f"  Departure: {segment['departure']['at']}, Arrival: {segment['arrival']['at']}")
-            print("-" * 50)
+        # Return the result
+        return {
+            "departure_flights": departure_flights,
+            "return_flights": return_flights,
+            "booking_details": booking_details
+        }

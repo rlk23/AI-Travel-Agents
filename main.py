@@ -23,50 +23,83 @@ def ai_agent():
     try:
         # Parse user prompt
         booking_details = nlp_agent.parse_prompt(user_prompt)
-        origin_code = nlp_agent.city_agent.city_to_airport_code(booking_details["origin"])
-        destination_code = nlp_agent.city_agent.city_to_airport_code(booking_details["destination"])
+        print("Parsed Booking Details:", booking_details)  # Debugging
 
+        # Validate cities
+        origin = booking_details.get("Origin city")
+        destination = booking_details.get("Destination city")
+        if not origin or not destination:
+            return jsonify({"error": "Origin or Destination city is missing"}), 400
+
+        # Fetch airport codes
+        origin_code = nlp_agent.city_agent.city_to_airport_code(origin)
+        destination_code = nlp_agent.city_agent.city_to_airport_code(destination)
         if not origin_code or not destination_code:
-            return jsonify({"error": "Invalid city names provided"}), 400
+            return jsonify({"error": f"Could not fetch airport codes for {origin} or {destination}"}), 400
+
+        # Validate dates
+        depart_date = booking_details.get("Departure date")
+        return_date = booking_details.get("Return date")
+        if not depart_date:
+            return jsonify({"error": "Departure date is required"}), 400
+        if booking_details.get("Trip type") == "round-trip" and not return_date:
+            return jsonify({"error": "Return date is required for round-trip"}), 400
 
         # Fetch flights
-        departure_data = fetch_flights(origin_code, destination_code, booking_details.get("depart_date"))
-        return_data = fetch_flights(destination_code, origin_code, booking_details.get("return_date")) if booking_details.get("trip_type") == "round-trip" else None
+        departure_flights = fetch_flights(origin_code, destination_code, depart_date, max_results=10)
+        return_flights = None
+        if return_date:
+            return_flights = fetch_flights(destination_code, origin_code, return_date, max_results=10)
 
-        # Fetch hotels
-        hotel_data = fetch_hotels_with_retry(
-            destination_code,
-            booking_details.get("hotel_check_in"),
-            booking_details.get("hotel_check_out")
-        )
-
-        response = {
-            "departure_flights": departure_data,
-            "return_flights": return_data,
-            "hotels": hotel_data
-        }
-        return jsonify(response), 200
+        return jsonify({
+            "departure_flights": departure_flights,
+            "return_flights": return_flights,
+            "booking_details": booking_details
+        }), 200
 
     except Exception as e:
         app.logger.error(f"Error: {e}")
         return jsonify({"error": "Internal Server Error", "details": str(e)}), 500
 
-def fetch_flights(origin, destination, date):
+
+def fetch_flights(origin, destination, date, max_results=10):
+    """
+    Fetch flights from the API using the FlightSearchAgent and format the results.
+    """
     if not date:
-        return []
+        return {"error": "Flight date is required"}
+
     flights = nlp_agent.flight_agent.search_flights(origin, destination, date)
-    return [
-        {
+    if "error" in flights:
+        return {"error": flights["error"]}
+
+    # Parse and structure the flight data
+    formatted_flights = []
+    for flight in flights["data"][:max_results]:
+        flight_info = {
             "flight_id": flight["id"],
             "price": flight["price"]["total"],
             "currency": flight["price"]["currency"],
-            "departure_code": flight["itineraries"][0]["segments"][0]["departure"]["iataCode"],
-            "departure_time": flight["itineraries"][0]["segments"][0]["departure"]["at"],
-            "arrival_code": flight["itineraries"][0]["segments"][-1]["arrival"]["iataCode"],
-            "arrival_time": flight["itineraries"][0]["segments"][-1]["arrival"]["at"],
-            "duration": flight["itineraries"][0]["duration"]
-        } for flight in flights["data"][:5]
-    ]
+            "duration": flight["itineraries"][0]["duration"],
+            "segments": []
+        }
+
+        for segment in flight["itineraries"][0]["segments"]:
+            segment_info = {
+                "departure_airport": segment["departure"]["iataCode"],
+                "departure_time": segment["departure"]["at"],
+                "arrival_airport": segment["arrival"]["iataCode"],
+                "arrival_time": segment["arrival"]["at"],
+                "carrier_code": segment["carrierCode"],
+                "flight_number": segment["number"],
+                "duration": segment["duration"]
+            }
+            flight_info["segments"].append(segment_info)
+
+        formatted_flights.append(flight_info)
+
+    return formatted_flights
+
 
 def fetch_hotels_with_retry(destination_code, check_in, check_out, retries=3, delay=2):
     """
@@ -92,6 +125,7 @@ def fetch_hotels_with_retry(destination_code, check_in, check_out, retries=3, de
             app.logger.warning(f"Retry {attempt + 1}/{retries} failed: {e}")
             time.sleep(delay)
     return {"error": "Unable to fetch hotel data due to rate limits."}
+
 
 if __name__ == "__main__":
     app.run(debug=True, port=5002)
