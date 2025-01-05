@@ -2,15 +2,13 @@ import time
 from flask import Flask, request, jsonify
 from flask_cors import CORS
 from agents.nlp_flight_booking_agent import NLPFlightBookingAgent
-from agents.result_compilation_agent import ResultCompilationAgent
 
 # Initialize Flask app
 app = Flask(__name__)
 CORS(app)
 
-# Initialize agents
+# Initialize NLP agent
 nlp_agent = NLPFlightBookingAgent()
-result_agent = ResultCompilationAgent()
 
 @app.route("/api/ai-agent", methods=["POST"])
 def ai_agent():
@@ -21,9 +19,9 @@ def ai_agent():
         return jsonify({"error": "Prompt is required"}), 400
 
     try:
-        # Parse user prompt
+        # Parse the user prompt
         booking_details = nlp_agent.parse_prompt(user_prompt)
-        print("Parsed Booking Details:", booking_details)  # Debugging
+        print("Parsed Booking Details:", booking_details)  # Debugging output
 
         # Validate cities
         origin = booking_details.get("Origin city")
@@ -51,9 +49,23 @@ def ai_agent():
         if return_date:
             return_flights = fetch_flights(destination_code, origin_code, return_date, max_results=10)
 
+        # Handle hotel booking if requested
+        hotels = None
+        if booking_details.get("Hotel stay required", "").lower() == "yes":
+            hotel_check_in = booking_details.get("Hotel check-in date")
+            hotel_check_out = booking_details.get("Hotel check-out date")
+            if not hotel_check_in or not hotel_check_out:
+                return jsonify({
+                    "error": "Hotel check-in and check-out dates are required",
+                    "booking_details": booking_details
+                }), 400
+            hotels = fetch_hotels_with_retry(destination_code, hotel_check_in, hotel_check_out)
+
+        # Compile and return the response
         return jsonify({
             "departure_flights": departure_flights,
             "return_flights": return_flights,
+            "hotels": hotels,
             "booking_details": booking_details
         }), 200
 
