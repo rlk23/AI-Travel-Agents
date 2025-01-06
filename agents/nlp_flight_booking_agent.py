@@ -3,23 +3,21 @@ from langchain.prompts import PromptTemplate
 from datetime import datetime
 from .city_to_airport_agent import CityToAirportAgent
 from .flight_search_agent import FlightSearchAgent
-from .hotel_search_agent import HotelSearchAgent  # Ensure this agent exists
+from .hotel_search_agent import HotelSearchAgent
 from .load_environement import chatgpt_api_key
 import json
-
 
 class NLPFlightBookingAgent:
     def __init__(self):
         self.city_agent = CityToAirportAgent()
         self.flight_agent = FlightSearchAgent(self.city_agent.access_token)
-        self.hotel_agent = HotelSearchAgent(self.city_agent.access_token)  # Ensure HotelSearchAgent exists
+        self.hotel_agent = HotelSearchAgent(self.city_agent.access_token)
         self.llm = ChatOpenAI(model="gpt-4", openai_api_key=chatgpt_api_key)
 
     def parse_prompt(self, prompt):
         """
         Parse the user input using LangChain and extract required booking details.
         """
-        # Template for extracting required details
         template = """
         Extract the following information from the input:
         - Origin city
@@ -29,6 +27,7 @@ class NLPFlightBookingAgent:
         - Trip type (one-way or round-trip)
         - Minimum price range (if mentioned)
         - Maximum price range (if mentioned)
+        - Seat class (economy, business, first; default is economy)
         - Hotel stay required (yes or no)
         - Hotel check-in date (yyyy-mm-dd format, if mentioned)
         - Hotel check-out date (yyyy-mm-dd format, if mentioned)
@@ -111,43 +110,50 @@ class NLPFlightBookingAgent:
             for hotel in hotels.get("data", [])[:5]
         ]
 
-    def book_flight(self, prompt):
+    def book_flight(self, flight_id, seat_class="economy"):
         """
-        Book flights and optionally fetch hotel details based on extracted booking details.
+        Book a flight with the specified flight ID and seat class.
+        """
+        try:
+            booking_response = self.flight_agent.book_flight(
+                flight_id=flight_id,
+                seat_class=seat_class,
+                passenger_details={"name": "John Doe"}  # Example passenger details
+            )
+            return booking_response
+        except Exception as e:
+            print(f"Error booking flight: {e}")
+            return {"error": "Failed to book the flight"}
+
+    def handle_request(self, prompt):
+        """
+        Handle the overall request including fetching flights, hotels, and optional booking.
         """
         booking_details = self.parse_prompt(prompt)
         booking_details = self.validate_dates(booking_details)
 
-        # Get airport codes
         origin_code = self.city_agent.city_to_airport_code(booking_details.get("Origin city"))
         destination_code = self.city_agent.city_to_airport_code(booking_details.get("Destination city"))
 
         if not origin_code or not destination_code:
             return {"error": "Invalid city names or airport codes could not be retrieved"}
 
-        # Fetch departure flights
+        # Fetch flights
         departure_flights = self.flight_agent.search_flights(
-            origin_code,
-            destination_code,
-            booking_details.get("Departure date")
-        )[:5]  # Limit to 5 results
+            origin_code, destination_code, booking_details.get("Departure date")
+        )[:5]
 
-        # Fetch return flights (if applicable)
         return_flights = None
         if booking_details.get("Trip type") == "round-trip" and booking_details.get("Return date"):
             return_flights = self.flight_agent.search_flights(
-                destination_code,
-                origin_code,
-                booking_details.get("Return date")
-            )[:5]  # Limit to 5 results
+                destination_code, origin_code, booking_details.get("Return date")
+            )[:5]
 
-        # Fetch hotels (if requested)
+        # Fetch hotels
         hotel_details = None
         if booking_details.get("Hotel stay required", "").lower() == "yes":
             check_in = booking_details.get("Hotel check-in date")
             check_out = booking_details.get("Hotel check-out date")
-            if not check_in or not check_out:
-                return {"error": "Hotel check-in and check-out dates are required"}
             hotel_details = self.fetch_hotels(destination_code, check_in, check_out)
 
         return {
