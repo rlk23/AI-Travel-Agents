@@ -37,11 +37,12 @@ const ChatWindow = () => {
       ? flights
           .map(
             (flight, index) =>
-              `${type} Flight ${index + 1}:\n` +
-              `  Price: ${flight.price} ${flight.currency}\n` +
-              `  Departure: ${flight.departure_code} at ${flight.departure_time}\n` +
-              `  Arrival: ${flight.arrival_code} at ${flight.arrival_time}\n` +
-              `  Duration: ${flight.duration}\n`
+              `${type} Flight ${index + 1}:
+  Price: ${flight.price} ${flight.currency}
+  Departure: ${flight.segments[0].departure_airport} at ${flight.segments[0].departure_time}
+  Arrival: ${flight.segments[flight.segments.length - 1].arrival_airport} at ${flight.segments[flight.segments.length - 1].arrival_time}
+  Duration: ${flight.duration}
+`
           )
           .join("\n")
       : `No ${type.toLowerCase()} flights available.`;
@@ -52,11 +53,12 @@ const ChatWindow = () => {
       ? hotels
           .map(
             (hotel, index) =>
-              `Hotel ${index + 1}:\n` +
-              `  Name: ${hotel.hotel_name}\n` +
-              `  Price: ${hotel.price} ${hotel.currency}\n` +
-              `  Check-in: ${hotel.check_in}\n` +
-              `  Check-out: ${hotel.check_out}\n`
+              `Hotel ${index + 1}:
+  Name: ${hotel.hotel_name}
+  Price: ${hotel.price} ${hotel.currency}
+  Check-in: ${hotel.check_in}
+  Check-out: ${hotel.check_out}
+`
           )
           .join("\n")
       : "No hotels available.";
@@ -76,7 +78,7 @@ const ChatWindow = () => {
         const { departure_flights, return_flights, hotels } = response.data;
 
         const formattedDepartureFlights = formatFlights(
-          departure_flights,
+          departure_flights || [],
           "Departure"
         );
         const formattedReturnFlights = formatFlights(
@@ -86,7 +88,14 @@ const ChatWindow = () => {
         const formattedHotels = formatHotels(hotels || []);
 
         const botMessage = {
-          text: `Here are the results:\n\n${formattedDepartureFlights}\n\n${formattedReturnFlights}\n\nHotels:\n${formattedHotels}`,
+          text: `Here are the results:
+
+${formattedDepartureFlights}
+
+${formattedReturnFlights}
+
+Hotels:
+${formattedHotels}`,
           sender: "bot",
         };
         setMessages((prev) => [...prev, botMessage]);
@@ -144,7 +153,8 @@ const ChatWindow = () => {
                 display: "inline-block",
                 padding: "10px",
                 borderRadius: "10px",
-                backgroundColor: msg.sender === "user" ? "#1976d2" : "#ffffff",
+                backgroundColor:
+                  msg.sender === "user" ? "#1976d2" : "#ffffff",
                 color: msg.sender === "user" ? "#ffffff" : "#000000",
                 boxShadow: "0 2px 5px rgba(0, 0, 0, 0.2)",
                 maxWidth: "80%",
