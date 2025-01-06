@@ -3,6 +3,7 @@ from langchain.prompts import PromptTemplate
 from datetime import datetime
 from .city_to_airport_agent import CityToAirportAgent
 from .flight_search_agent import FlightSearchAgent
+from .hotel_search_agent import HotelSearchAgent  # Ensure this agent exists
 from .load_environement import chatgpt_api_key
 import json
 
@@ -11,13 +12,14 @@ class NLPFlightBookingAgent:
     def __init__(self):
         self.city_agent = CityToAirportAgent()
         self.flight_agent = FlightSearchAgent(self.city_agent.access_token)
+        self.hotel_agent = HotelSearchAgent(self.city_agent.access_token)  # Ensure HotelSearchAgent exists
         self.llm = ChatOpenAI(model="gpt-4", openai_api_key=chatgpt_api_key)
 
     def parse_prompt(self, prompt):
         """
         Parse the user input using LangChain and extract required booking details.
         """
-        # Update the template to include hotel details
+        # Template for extracting required details
         template = """
         Extract the following information from the input:
         - Origin city
@@ -39,7 +41,6 @@ class NLPFlightBookingAgent:
         formatted_prompt = prompt_template.format_prompt(prompt=prompt).to_string()
 
         try:
-            # Send the prompt to the LLM
             response = self.llm.invoke(formatted_prompt)
             parsed_response = json.loads(response.content)
             print("Parsed Response:", json.dumps(parsed_response, indent=4))
@@ -53,34 +54,37 @@ class NLPFlightBookingAgent:
         Validate and correct extracted dates to ensure they are logical.
         """
         today = datetime.today()
-        if "depart_date" in entities and entities["depart_date"]:
-            depart_date = datetime.strptime(entities["depart_date"], "%Y-%m-%d")
+
+        if "Departure date" in entities:
+            depart_date = datetime.strptime(entities["Departure date"], "%Y-%m-%d")
             if depart_date < today:
-                print(f"Invalid depart_date: {entities['depart_date']} (Date is in the past)")
-                entities["depart_date"] = None
+                print(f"Invalid Departure date: {entities['Departure date']} (Date is in the past)")
+                entities["Departure date"] = None
 
-        if "return_date" in entities and entities["return_date"]:
-            return_date = datetime.strptime(entities["return_date"], "%Y-%m-%d")
+        if "Return date" in entities:
+            return_date = datetime.strptime(entities["Return date"], "%Y-%m-%d")
             if return_date < today:
-                print(f"Invalid return_date: {entities['return_date']} (Date is in the past)")
-                entities["return_date"] = None
-            elif entities["depart_date"]:
-                depart_date = datetime.strptime(entities["depart_date"], "%Y-%m-%d")
-                if return_date <= depart_date:
-                    print(f"Invalid return_date: {entities['return_date']} (Return date must be after depart_date)")
-                    entities["return_date"] = None
+                print(f"Invalid Return date: {entities['Return date']} (Date is in the past)")
+                entities["Return date"] = None
+            elif entities["Departure date"] and return_date <= datetime.strptime(
+                entities["Departure date"], "%Y-%m-%d"
+            ):
+                print(f"Invalid Return date: {entities['Return date']} (Must be after departure date)")
+                entities["Return date"] = None
 
-        if "hotel_check_in" in entities and entities["hotel_check_in"]:
-            check_in = datetime.strptime(entities["hotel_check_in"], "%Y-%m-%d")
-            if check_in < today:
-                print(f"Invalid hotel_check_in: {entities['hotel_check_in']} (Date is in the past)")
-                entities["hotel_check_in"] = None
+        if "Hotel check-in date" in entities:
+            check_in_date = datetime.strptime(entities["Hotel check-in date"], "%Y-%m-%d")
+            if check_in_date < today:
+                print(f"Invalid Hotel check-in date: {entities['Hotel check-in date']} (Date is in the past)")
+                entities["Hotel check-in date"] = None
 
-        if "hotel_check_out" in entities and entities["hotel_check_out"]:
-            check_out = datetime.strptime(entities["hotel_check_out"], "%Y-%m-%d")
-            if check_out <= entities.get("hotel_check_in", today):
-                print(f"Invalid hotel_check_out: {entities['hotel_check_out']} (Must be after check-in)")
-                entities["hotel_check_out"] = None
+        if "Hotel check-out date" in entities:
+            check_out_date = datetime.strptime(entities["Hotel check-out date"], "%Y-%m-%d")
+            if check_out_date <= entities.get("Hotel check-in date", today):
+                print(
+                    f"Invalid Hotel check-out date: {entities['Hotel check-out date']} (Must be after check-in date)"
+                )
+                entities["Hotel check-out date"] = None
 
         return entities
 
@@ -91,7 +95,7 @@ class NLPFlightBookingAgent:
         if not check_in or not check_out:
             return {"error": "Check-in and check-out dates are required to fetch hotels"}
 
-        hotels = self.city_agent.fetch_hotels(city_code, check_in, check_out)
+        hotels = self.hotel_agent.search_hotels(city_code, check_in, check_out)
         if "error" in hotels:
             return {"error": hotels["error"]}
 
@@ -103,7 +107,8 @@ class NLPFlightBookingAgent:
                 "currency": hotel["offers"][0]["price"]["currency"],
                 "check_in": hotel["offers"][0]["checkInDate"],
                 "check_out": hotel["offers"][0]["checkOutDate"]
-            } for hotel in hotels.get("data", [])[:5]
+            }
+            for hotel in hotels.get("data", [])[:5]
         ]
 
     def book_flight(self, prompt):
@@ -125,7 +130,7 @@ class NLPFlightBookingAgent:
             origin_code,
             destination_code,
             booking_details.get("Departure date")
-        )
+        )[:5]  # Limit to 5 results
 
         # Fetch return flights (if applicable)
         return_flights = None
@@ -134,13 +139,13 @@ class NLPFlightBookingAgent:
                 destination_code,
                 origin_code,
                 booking_details.get("Return date")
-            )
+            )[:5]  # Limit to 5 results
 
         # Fetch hotels (if requested)
         hotel_details = None
         if booking_details.get("Hotel stay required", "").lower() == "yes":
-            check_in = booking_details.get("hotel_check_in")
-            check_out = booking_details.get("hotel_check_out")
+            check_in = booking_details.get("Hotel check-in date")
+            check_out = booking_details.get("Hotel check-out date")
             if not check_in or not check_out:
                 return {"error": "Hotel check-in and check-out dates are required"}
             hotel_details = self.fetch_hotels(destination_code, check_in, check_out)
@@ -149,5 +154,5 @@ class NLPFlightBookingAgent:
             "departure_flights": departure_flights,
             "return_flights": return_flights,
             "hotel_details": hotel_details,
-            "booking_details": booking_details
+            "booking_details": booking_details,
         }

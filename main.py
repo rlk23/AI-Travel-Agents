@@ -44,10 +44,10 @@ def ai_agent():
             return jsonify({"error": "Return date is required for round-trip"}), 400
 
         # Fetch flights
-        departure_flights = fetch_flights(origin_code, destination_code, depart_date, max_results=10)
+        departure_flights = fetch_flights(origin_code, destination_code, depart_date, max_results=5)
         return_flights = None
         if return_date:
-            return_flights = fetch_flights(destination_code, origin_code, return_date, max_results=10)
+            return_flights = fetch_flights(destination_code, origin_code, return_date, max_results=5)
 
         # Handle hotel booking if requested
         hotels = None
@@ -59,7 +59,7 @@ def ai_agent():
                     "error": "Hotel check-in and check-out dates are required",
                     "booking_details": booking_details
                 }), 400
-            hotels = fetch_hotels_with_retry(destination_code, hotel_check_in, hotel_check_out)
+            hotels = fetch_hotels_with_retry(destination_code, hotel_check_in, hotel_check_out, max_results=5)
 
         # Compile and return the response
         return jsonify({
@@ -74,7 +74,7 @@ def ai_agent():
         return jsonify({"error": "Internal Server Error", "details": str(e)}), 500
 
 
-def fetch_flights(origin, destination, date, max_results=10):
+def fetch_flights(origin, destination, date, max_results=5):
     """
     Fetch flights from the API using the FlightSearchAgent and format the results.
     """
@@ -113,7 +113,7 @@ def fetch_flights(origin, destination, date, max_results=10):
     return formatted_flights
 
 
-def fetch_hotels_with_retry(destination_code, check_in, check_out, retries=3, delay=2):
+def fetch_hotels_with_retry(destination_code, check_in, check_out, max_results=5, retries=3, delay=2):
     """
     Fetch hotel data with retry logic to handle rate limits.
     """
@@ -131,7 +131,7 @@ def fetch_hotels_with_retry(destination_code, check_in, check_out, retries=3, de
                         "currency": hotel["offers"][0]["price"]["currency"],
                         "check_in": hotel["offers"][0]["checkInDate"],
                         "check_out": hotel["offers"][0]["checkOutDate"]
-                    } for hotel in hotels["data"][:5]
+                    } for hotel in hotels["data"][:max_results]
                 ]
         except Exception as e:
             app.logger.warning(f"Retry {attempt + 1}/{retries} failed: {e}")
