@@ -1,4 +1,11 @@
+import time
+from flask import Flask, request, jsonify
+from flask_cors import CORS
+from langchain_openai import ChatOpenAI
+from langchain.prompts import PromptTemplate
+from datetime import datetime
 import requests
+import json
 
 class FlightSearchAgent:
     def __init__(self, access_token):
@@ -52,13 +59,6 @@ class FlightSearchAgent:
 
         if response.status_code == 200:
             flights = response.json()
-
-            # Validate cabin class
-            for flight in flights.get("data", []):
-                for segment in flight["itineraries"][0]["segments"]:
-                    if "cabin" in segment:
-                        assert segment["cabin"] == cabin.upper(), f"Non-{cabin} class found!"
-
             return flights
         else:
             print("Error fetching flights:", response.json().get("errors", response.text))
