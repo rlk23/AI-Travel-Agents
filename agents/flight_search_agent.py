@@ -51,7 +51,15 @@ class FlightSearchAgent:
         )
 
         if response.status_code == 200:
-            return response.json()
+            flights = response.json()
+
+            # Validate cabin class
+            for flight in flights.get("data", []):
+                for segment in flight["itineraries"][0]["segments"]:
+                    if "cabin" in segment:
+                        assert segment["cabin"] == cabin.upper(), f"Non-{cabin} class found!"
+
+            return flights
         else:
             print("Error fetching flights:", response.json().get("errors", response.text))
             return {"error": "Failed to retrieve flights"}
