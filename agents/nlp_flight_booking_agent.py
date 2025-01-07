@@ -27,7 +27,7 @@ class NLPFlightBookingAgent:
         - Trip type (one-way or round-trip)
         - Minimum price range (if mentioned)
         - Maximum price range (if mentioned)
-        - Seat class (economy, business, first; default is economy)
+        - Cabin (economy, business, first; default is economy)
         - Hotel stay required (yes or no)
         - Hotel check-in date (yyyy-mm-dd format, if mentioned)
         - Hotel check-out date (yyyy-mm-dd format, if mentioned)
@@ -110,14 +110,14 @@ class NLPFlightBookingAgent:
             for hotel in hotels.get("data", [])[:5]
         ]
 
-    def book_flight(self, flight_id, seat_class="economy"):
+    def book_flight(self, flight_id, cabin="economy"):
         """
-        Book a flight with the specified flight ID and seat class.
+        Book a flight with the specified flight ID and cabin class.
         """
         try:
             booking_response = self.flight_agent.book_flight(
                 flight_id=flight_id,
-                seat_class=seat_class,
+                cabin=cabin,
                 passenger_details={"name": "John Doe"}  # Example passenger details
             )
             return booking_response
@@ -140,13 +140,13 @@ class NLPFlightBookingAgent:
 
         # Fetch flights
         departure_flights = self.flight_agent.search_flights(
-            origin_code, destination_code, booking_details.get("Departure date")
+            origin_code, destination_code, booking_details.get("Departure date"), seat_class=booking_details.get("Cabin", "economy")
         )[:5]
 
         return_flights = None
         if booking_details.get("Trip type") == "round-trip" and booking_details.get("Return date"):
             return_flights = self.flight_agent.search_flights(
-                destination_code, origin_code, booking_details.get("Return date")
+                destination_code, origin_code, booking_details.get("Return date"), seat_class=booking_details.get("Cabin", "economy")
             )[:5]
 
         # Fetch hotels
