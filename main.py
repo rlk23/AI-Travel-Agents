@@ -88,8 +88,12 @@ def fetch_flights(origin, destination, date, max_results=5):
     # Parse and structure the flight data
     formatted_flights = []
     for flight in flights["data"][:max_results]:
+        carrier_code = flight["itineraries"][0]["segments"][0]["carrierCode"]
+        airline_name = nlp_agent.flight_agent.get_airline_name(carrier_code)
+
         flight_info = {
             "flight_id": flight["id"],
+            "airline": airline_name,  # Add airline name
             "price": flight["price"]["total"],
             "currency": flight["price"]["currency"],
             "duration": flight["itineraries"][0]["duration"],
@@ -103,6 +107,7 @@ def fetch_flights(origin, destination, date, max_results=5):
                 "arrival_airport": segment["arrival"]["iataCode"],
                 "arrival_time": segment["arrival"]["at"],
                 "carrier_code": segment["carrierCode"],
+                "airline_name": airline_name,  # Add airline name for each segment
                 "flight_number": segment["number"],
                 "duration": segment["duration"]
             }
