@@ -9,6 +9,7 @@ import {
   DialogDescription
 } from '@/components/ui/dialog';
 import { format } from 'date-fns';
+import { MapPin } from 'lucide-react';
 
 // Sample travel plans converted to calendar events format
 const generateSampleEvents = (): CalendarEvent[] => {
