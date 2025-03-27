@@ -45,7 +45,7 @@ export function ResultsView({ response }: ResultsViewProps) {
           {hasDepartureFlights ? (
             <>
               <h3 className="text-lg font-semibold">Departure Flights</h3>
-              {response.departure_flights.map((flight) => (
+              {response.departure_flights?.map((flight) => (
                 <FlightCard 
                   key={flight.flight_id} 
                   flight={flight} 
@@ -63,7 +63,7 @@ export function ResultsView({ response }: ResultsViewProps) {
           {hasReturnFlights && (
             <>
               <h3 className="text-lg font-semibold mt-6">Return Flights</h3>
-              {response.return_flights.map((flight) => (
+              {response.return_flights?.map((flight) => (
                 <FlightCard 
                   key={flight.flight_id} 
                   flight={flight} 
@@ -78,7 +78,7 @@ export function ResultsView({ response }: ResultsViewProps) {
           {hasHotels ? (
             <>
               <h3 className="text-lg font-semibold">Available Hotels</h3>
-              {response.hotels.map((hotel, index) => (
+              {response.hotels?.map((hotel, index) => (
                 <HotelCard key={index} hotel={hotel} />
               ))}
             </>

@@ -1,31 +1,30 @@
-import { useState } from 'react'
-import './App.css'
-import reactLogo from './assets/react.svg'
-import viteLogo from '/vite.svg'
+import React from 'react';
+import { Chat } from '@/components/chat';
+import { ModeToggle } from './components/mode-toggle';
+import { Plane } from 'lucide-react';
 
 function App() {
-  const [count, setCount] = useState(0)
-
   return (
-    <>
-      <div>
-        <a href='https://vitejs.dev' target='_blank'>
-          <img src={viteLogo} className='logo' alt='Vite logo' />
-        </a>
-        <a href='https://react.dev' target='_blank'>
-          <img src={reactLogo} className='logo react' alt='React logo' />
-        </a>
-      </div>
-      <h1>Vite + React</h1>
-      <div className='card'>
-        <button onClick={() => setCount(count => count + 1)}>count is {count}</button>
-        <p>
-          Edit <code>src/App.tsx</code> and save to test HMR
-        </p>
-      </div>
-      <p className='read-the-docs'>Click on the Vite and React logos to learn more</p>
-    </>
-  )
+    <div className="flex flex-col h-screen bg-background">
+      <header className="border-b py-3 px-4 flex justify-between items-center">
+        <div className="flex items-center gap-2">
+          <Plane className="h-6 w-6" />
+          <h1 className="font-bold text-xl">AI Travel Assistant</h1>
+        </div>
+        <ModeToggle />
+      </header>
+      
+      <main className="flex-1 overflow-hidden container py-4">
+        <div className="border rounded-lg shadow-sm h-full overflow-hidden">
+          <Chat />
+        </div>
+      </main>
+      
+      <footer className="border-t py-3 px-4 text-center text-sm text-muted-foreground">
+        © 2025 AI Travel Assistant
+      </footer>
+    </div>
+  );
 }
 
-export default App
+export default App;
