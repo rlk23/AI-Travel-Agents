@@ -1,159 +1,216 @@
 import React, { useState } from 'react';
-import { Calendar } from '@/components/ui/calendar';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { cn } from '@/lib/utils';
-import { Badge } from '@/components/ui/badge';
-import { Plane, Hotel } from 'lucide-react';
+import { CalendarLayout } from '@/components/ui/calendar/calendar-layout';
+import { CalendarEvent, EventType } from '@/types/calendar';
+import { 
+  Dialog, 
+  DialogContent, 
+  DialogHeader, 
+  DialogTitle,
+  DialogDescription
+} from '@/components/ui/dialog';
+import { format } from 'date-fns';
 
-// Sample travel plans for demonstration
-const travelPlans = [
-  {
-    id: 1,
-    type: 'flight',
-    title: 'Flight to Miami',
-    date: new Date(2025, 3, 15), // April 15, 2025
-    details: 'JFK to MIA, American Airlines'
-  },
-  {
-    id: 2,
-    type: 'flight',
-    title: 'Return from Miami',
-    date: new Date(2025, 3, 20), // April 20, 2025
-    details: 'MIA to JFK, American Airlines'
-  },
-  {
-    id: 3,
-    type: 'hotel',
-    title: 'Oceanview Resort',
-    date: new Date(2025, 3, 15), // April 15, 2025
-    endDate: new Date(2025, 3, 20), // April 20, 2025
-    details: 'Miami Beach, 5 nights'
-  },
-  {
-    id: 4,
-    type: 'flight',
-    title: 'Flight to London',
-    date: new Date(2025, 5, 10), // June 10, 2025
-    details: 'JFK to LHR, British Airways'
-  },
-  {
-    id: 5,
-    type: 'hotel',
-    title: 'Downtown Hotel',
-    date: new Date(2025, 5, 10), // June 10, 2025
-    endDate: new Date(2025, 5, 15), // June 15, 2025
-    details: 'London, 5 nights'
-  }
-];
+// Sample travel plans converted to calendar events format
+const generateSampleEvents = (): CalendarEvent[] => {
+  // Miami trip
+  const miamiDeparture = new Date(2025, 3, 15, 10, 0);
+  const miamiDepartureEnd = new Date(2025, 3, 15, 13, 30);
+  const miamiReturn = new Date(2025, 3, 20, 15, 0);
+  const miamiReturnEnd = new Date(2025, 3, 20, 18, 30);
+  const miamiHotelStart = new Date(2025, 3, 15, 15, 0);
+  const miamiHotelEnd = new Date(2025, 3, 20, 11, 0);
+  
+  // London trip
+  const londonDeparture = new Date(2025, 5, 10, 19, 30);
+  const londonDepartureEnd = new Date(2025, 5, 11, 8, 0);
+  const londonHotelStart = new Date(2025, 5, 11, 10, 0);
+  const londonHotelEnd = new Date(2025, 5, 15, 12, 0);
+  
+  // Activities for Miami
+  const miamiActivities = [
+    {
+      id: 'act-1',
+      title: 'South Beach Visit',
+      start: new Date(2025, 3, 16, 10, 0),
+      end: new Date(2025, 3, 16, 14, 0),
+      type: 'activity' as EventType,
+      location: 'South Beach, Miami',
+      details: 'Relaxing day at the famous South Beach'
+    },
+    {
+      id: 'act-2',
+      title: 'Dinner at Versace Mansion',
+      start: new Date(2025, 3, 17, 19, 0),
+      end: new Date(2025, 3, 17, 21, 0),
+      type: 'restaurant' as EventType,
+      location: 'Ocean Drive, Miami Beach',
+      details: 'Fine dining experience at the former Versace Mansion'
+    },
+    {
+      id: 'act-3',
+      title: 'Everglades Tour',
+      start: new Date(2025, 3, 18, 9, 0),
+      end: new Date(2025, 3, 18, 15, 0),
+      type: 'sightseeing' as EventType,
+      location: 'Everglades National Park',
+      details: 'Airboat tour of the Everglades with wildlife spotting'
+    }
+  ];
+  
+  // Activities for London
+  const londonActivities = [
+    {
+      id: 'act-4',
+      title: 'British Museum Visit',
+      start: new Date(2025, 5, 11, 13, 0),
+      end: new Date(2025, 5, 11, 17, 0),
+      type: 'sightseeing' as EventType,
+      location: 'Great Russell St, London',
+      details: 'Exploring the British Museum collections'
+    },
+    {
+      id: 'act-5',
+      title: 'London Eye Experience',
+      start: new Date(2025, 5, 12, 16, 0),
+      end: new Date(2025, 5, 12, 17, 30),
+      type: 'activity' as EventType,
+      location: 'South Bank, London',
+      details: 'Panoramic views of London from the iconic London Eye'
+    },
+    {
+      id: 'act-6',
+      title: 'Dinner at The Shard',
+      start: new Date(2025, 5, 13, 19, 0),
+      end: new Date(2025, 5, 13, 21, 30),
+      type: 'restaurant' as EventType,
+      location: 'London Bridge, London',
+      details: 'Fine dining with spectacular views at The Shard'
+    }
+  ];
+  
+  return [
+    {
+      id: 'flight-1',
+      title: 'Flight to Miami',
+      start: miamiDeparture,
+      end: miamiDepartureEnd,
+      type: 'flight',
+      location: 'JFK to MIA',
+      details: 'American Airlines, Flight AA123'
+    },
+    {
+      id: 'flight-2',
+      title: 'Return from Miami',
+      start: miamiReturn,
+      end: miamiReturnEnd,
+      type: 'flight',
+      location: 'MIA to JFK',
+      details: 'American Airlines, Flight AA456'
+    },
+    {
+      id: 'hotel-1',
+      title: 'Oceanview Resort',
+      start: miamiHotelStart,
+      end: miamiHotelEnd,
+      type: 'hotel',
+      location: 'Miami Beach',
+      details: '5 nights, Ocean View Room'
+    },
+    {
+      id: 'flight-3',
+      title: 'Flight to London',
+      start: londonDeparture,
+      end: londonDepartureEnd,
+      type: 'flight',
+      location: 'JFK to LHR',
+      details: 'British Airways, Flight BA112'
+    },
+    {
+      id: 'hotel-2',
+      title: 'Downtown Hotel',
+      start: londonHotelStart,
+      end: londonHotelEnd,
+      type: 'hotel',
+      location: 'London City Center',
+      details: '4 nights, Executive Suite'
+    },
+    ...miamiActivities,
+    ...londonActivities
+  ];
+};
 
 export function CalendarView() {
-  const [date, setDate] = useState<Date | null>(new Date());
-  const [selectedDate, setSelectedDate] = useState<Date | null>(null);
+  const [events] = useState<CalendarEvent[]>(generateSampleEvents());
+  const [selectedEvent, setSelectedEvent] = useState<CalendarEvent | null>(null);
   
-  // Filter travel plans for the selected date
-  const filteredPlans = selectedDate 
-    ? travelPlans.filter(plan => {
-        if (plan.type === 'hotel' && plan.endDate) {
-          // For hotels, check if selected date is within the stay period
-          return (
-            selectedDate >= new Date(plan.date) && 
-            selectedDate <= new Date(plan.endDate)
-          );
-        } else {
-          // For flights, just check the exact date
-          return (
-            selectedDate.getDate() === new Date(plan.date).getDate() &&
-            selectedDate.getMonth() === new Date(plan.date).getMonth() &&
-            selectedDate.getFullYear() === new Date(plan.date).getFullYear()
-          );
-        }
-      })
-    : [];
-
+  // Dialog open/close state
+  const [dialogOpen, setDialogOpen] = useState(false);
+  
+  // Handle event click to show details
+  const handleEventClick = (event: CalendarEvent) => {
+    setSelectedEvent(event);
+    setDialogOpen(true);
+  };
+  
+  // Create a new event when a time slot is selected
+  const handleNewEvent = (start: Date, end: Date) => {
+    // In a real app, you would show a form to create an event
+    console.log('Create event:', { start, end });
+  };
+  
   return (
-    <div className="p-4 h-full flex flex-col">
-      <h1 className="text-2xl font-bold mb-4">Travel Calendar</h1>
+    <div className="h-full">
+      <CalendarLayout
+        events={events}
+        onEventClick={handleEventClick}
+        onNewEvent={handleNewEvent}
+      />
       
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 flex-1">
-        <Card>
-          <CardHeader>
-            <CardTitle>Your Trips</CardTitle>
-            <CardDescription>View and manage your upcoming travel plans</CardDescription>
-          </CardHeader>
-          <CardContent className="p-0">
-          <Calendar
-            mode="single"
-            selected={date}
-            onSelect={(newDate) => {
-                setDate(newDate);
-                setSelectedDate(newDate);
-            }}
-            className="rounded-md"
-            disabled={{ before: new Date(2023, 0, 1) }}
-            classNames={{
-                day_selected: "bg-primary text-primary-foreground",
-                day_today: "bg-accent text-accent-foreground",
-                day: travelPlans.some(plan => 
-                new Date(plan.date).toDateString() === date?.toDateString()
-                ) ? "font-bold bg-primary/10 text-primary" : undefined
-            }}
-            />
-          </CardContent>
-        </Card>
-        
-        <Card>
-          <CardHeader>
-            <CardTitle>
-              {selectedDate ? (
-                <>Plans for {selectedDate.toLocaleDateString()}</>
-              ) : (
-                <>Select a date to view plans</>
-              )}
-            </CardTitle>
-            <CardDescription>
-              {filteredPlans.length} items scheduled
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            {filteredPlans.length > 0 ? (
-              <div className="space-y-4">
-                {filteredPlans.map(plan => (
-                  <div 
-                    key={plan.id} 
-                    className="flex items-start border-l-4 pl-3 py-1"
-                    style={{
-                      borderColor: plan.type === 'flight' 
-                        ? 'hsl(var(--primary))' 
-                        : 'hsl(var(--secondary))'
-                    }}
-                  >
-                    <div className="mr-3 mt-1">
-                      {plan.type === 'flight' ? (
-                        <Plane className="h-5 w-5 text-primary" />
-                      ) : (
-                        <Hotel className="h-5 w-5 text-secondary" />
-                      )}
-                    </div>
+      {/* Event details dialog */}
+      <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
+        <DialogContent>
+          {selectedEvent && (
+            <>
+              <DialogHeader>
+                <DialogTitle className="text-xl">{selectedEvent.title}</DialogTitle>
+                <DialogDescription>
+                  {format(selectedEvent.start, 'PPP')} • {format(selectedEvent.start, 'p')} - {format(selectedEvent.end, 'p')}
+                </DialogDescription>
+              </DialogHeader>
+              
+              <div className="space-y-4 mt-4">
+                {selectedEvent.location && (
+                  <div className="flex items-start">
+                    <MapPin className="h-5 w-5 mr-2 mt-0.5 text-muted-foreground" />
                     <div>
-                      <h3 className="font-medium">{plan.title}</h3>
-                      <p className="text-sm text-muted-foreground">{plan.details}</p>
-                      {plan.type === 'hotel' && plan.endDate && (
-                        <Badge variant="outline" className="mt-1">
-                          {new Date(plan.date).toLocaleDateString()} - {new Date(plan.endDate).toLocaleDateString()}
-                        </Badge>
-                      )}
+                      <div className="font-medium">Location</div>
+                      <div>{selectedEvent.location}</div>
                     </div>
                   </div>
-                ))}
+                )}
+                
+                {selectedEvent.details && (
+                  <div className="flex items-start">
+                    <div className="h-5 w-5 mr-2"></div> {/* Spacer for alignment */}
+                    <div>
+                      <div className="font-medium">Details</div>
+                      <div>{selectedEvent.details}</div>
+                    </div>
+                  </div>
+                )}
+                
+                <div className="flex items-start">
+                  <div className="h-5 w-5 mr-2"></div> {/* Spacer for alignment */}
+                  <div>
+                    <div className="font-medium">Event Type</div>
+                    <div className="capitalize">{selectedEvent.type}</div>
+                  </div>
+                </div>
               </div>
-            ) : selectedDate ? (
-              <p className="text-muted-foreground">No travel plans for this date.</p>
-            ) : (
-              <p className="text-muted-foreground">Click a date on the calendar to view your plans.</p>
-            )}
-          </CardContent>
-        </Card>
-      </div>
+            </>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
