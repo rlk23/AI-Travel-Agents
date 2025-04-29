@@ -2,13 +2,27 @@ import time
 from flask import Flask, request, jsonify
 from flask_cors import CORS
 from agents.nlp_flight_booking_agent import NLPFlightBookingAgent
+from agents.flight_booking_agent import FlightBookingAgent
+from database.config import SessionLocal
+from database.models import User
+import uuid
 
 # Initialize Flask app
 app = Flask(__name__)
 CORS(app)
 
-# Initialize NLP agent
+# Initialize database session
+def get_db():
+    db = SessionLocal()
+    try:
+        yield db
+    finally:
+        db.close()
+
+# Initialize agents
 nlp_agent = NLPFlightBookingAgent()
+db = next(get_db())
+booking_agent = FlightBookingAgent(nlp_agent.city_agent.access_token, db)
 
 @app.route("/api/ai-agent", methods=["POST"])
 def ai_agent():
@@ -143,6 +157,92 @@ def fetch_hotels_with_retry(destination_code, check_in, check_out, max_results=5
             time.sleep(delay)
     return {"error": "Unable to fetch hotel data due to rate limits."}
 
+@app.route("/api/book-flight", methods=["POST"])
+def book_flight():
+    """
+    Endpoint to handle flight booking requests with database integration.
+    """
+    data = request.json
+    
+    # Required fields
+    required_fields = ["flight_offer", "traveler_info", "contact_info", "user_id"]
+    for field in required_fields:
+        if field not in data:
+            return jsonify({"error": f"Missing required field: {field}"}), 400
+
+    try:
+        # Verify user exists
+        user = db.query(User).filter(User.user_id == uuid.UUID(data["user_id"])).first()
+        if not user:
+            return jsonify({"error": "User not found"}), 404
+
+        # Create the booking with database integration
+        booking_result = booking_agent.create_booking_with_db(
+            flight_offer=data["flight_offer"],
+            user_id=uuid.UUID(data["user_id"]),
+            traveler_info=data["traveler_info"],
+            contact_info=data["contact_info"]
+        )
+
+        if booking_result["status"] == "success":
+            return jsonify({
+                "status": "success",
+                "booking_id": booking_result["booking_id"],
+                "booking_reference": booking_result["booking_reference"],
+                "details": booking_result["details"]
+            }), 201
+        else:
+            return jsonify({
+                "status": "error",
+                "error": booking_result["error"]
+            }), 400
+
+    except Exception as e:
+        app.logger.error(f"Error booking flight: {e}")
+        return jsonify({"error": "Internal Server Error", "details": str(e)}), 500
+
+@app.route("/api/booking-status/<booking_id>", methods=["GET"])
+def get_booking_status(booking_id):
+    """
+    Endpoint to check the status of a flight booking.
+    """
+    try:
+        status_result = booking_agent.get_booking_status(booking_id)
+        
+        if status_result["status"] == "success":
+            return jsonify(status_result["booking_status"]), 200
+        else:
+            return jsonify({
+                "status": "error",
+                "error": status_result["error"]
+            }), 400
+
+    except Exception as e:
+        app.logger.error(f"Error checking booking status: {e}")
+        return jsonify({"error": "Internal Server Error", "details": str(e)}), 500
+
+@app.route("/api/cancel-booking/<booking_id>", methods=["DELETE"])
+def cancel_booking(booking_id):
+    """
+    Endpoint to cancel a flight booking.
+    """
+    try:
+        cancel_result = booking_agent.cancel_booking(booking_id)
+        
+        if cancel_result["status"] == "success":
+            return jsonify({
+                "status": "success",
+                "message": cancel_result["message"]
+            }), 200
+        else:
+            return jsonify({
+                "status": "error",
+                "error": cancel_result["error"]
+            }), 400
+
+    except Exception as e:
+        app.logger.error(f"Error cancelling booking: {e}")
+        return jsonify({"error": "Internal Server Error", "details": str(e)}), 500
 
 if __name__ == "__main__":
     app.run(debug=True, port=5002)
