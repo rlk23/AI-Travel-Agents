@@ -6,13 +6,45 @@ from langchain.prompts import PromptTemplate
 from datetime import datetime
 import requests
 import json
+from typing import Dict, List, Optional
 
 class FlightSearchAgent:
-    def __init__(self, access_token):
+    def __init__(self, access_token: str):
+        """
+        Initialize the FlightSearchAgent with Amadeus API credentials.
+        
+        Args:
+            access_token (str): Amadeus API access token
+        """
         self.access_token = access_token
-        self.airlines = {}  # Store airline data to minimize API calls
+        self.base_url = "https://test.api.amadeus.com"
+        self.airlines = {}  # Cache for airline names
 
-    def search_flights(self, origin, destination, date, cabin="ECONOMY", time="00:00:00", max_offers=5):
+    def search_flights(
+        self,
+        origin: str,
+        destination: str,
+        date: str,
+        cabin: str = "ECONOMY",
+        time: str = "00:00:00",
+        max_offers: int = 5,
+        passengers: int = 1
+    ) -> Dict:
+        """
+        Search for flights using the Amadeus API.
+        
+        Args:
+            origin (str): Departure airport IATA code
+            destination (str): Arrival airport IATA code
+            date (str): Departure date in YYYY-MM-DD format
+            cabin (str): Cabin class (ECONOMY, BUSINESS, FIRST)
+            time (str): Departure time in HH:MM:SS format
+            max_offers (int): Maximum number of flight offers to return
+            passengers (int): Number of passengers
+            
+        Returns:
+            Dict: Processed flight search results or error message
+        """
         headers = {
             "Authorization": f"Bearer {self.access_token}",
             "Content-Type": "application/json"
@@ -33,9 +65,9 @@ class FlightSearchAgent:
             ],
             "travelers": [
                 {
-                    "id": "1",
+                    "id": str(i),
                     "travelerType": "ADULT"
-                }
+                } for i in range(1, passengers + 1)
             ],
             "sources": ["GDS"],
             "searchCriteria": {
@@ -52,37 +84,168 @@ class FlightSearchAgent:
             }
         }
 
-        response = requests.post(
-            "https://test.api.amadeus.com/v2/shopping/flight-offers",
-            headers=headers,
-            json=payload
-        )
+        try:
+            response = requests.post(
+                f"{self.base_url}/v2/shopping/flight-offers",
+                headers=headers,
+                json=payload,
+                timeout=30  # Add timeout
+            )
 
-        if response.status_code == 200:
-            flights = response.json()
-            return flights
-        else:
-            print("Error fetching flights:", response.json().get("errors", response.text))
-            return {"error": "Failed to retrieve flights"}
+            if response.status_code == 200:
+                return self._process_flight_results(response.json())
+            else:
+                error_data = response.json()
+                return {
+                    "status": "error",
+                    "error": error_data.get("errors", [{"detail": "Unknown error occurred"}])[0]["detail"]
+                }
+                
+        except requests.Timeout:
+            return {
+                "status": "error",
+                "error": "Request timed out. Please try again."
+            }
+        except requests.RequestException as e:
+            return {
+                "status": "error",
+                "error": f"Request failed: {str(e)}"
+            }
+        except Exception as e:
+            return {
+                "status": "error",
+                "error": f"Unexpected error: {str(e)}"
+            }
 
-    def get_airline_name(self, airline_code):
+    def _process_flight_results(self, response_data: Dict) -> Dict:
         """
-        Fetch airline name from the Amadeus API based on the airline code.
+        Process and format the flight results from Amadeus API.
+        
+        Args:
+            response_data (Dict): Raw response from Amadeus API
+            
+        Returns:
+            Dict: Processed flight results
         """
-        if airline_code in self.airlines:
-            return self.airlines[airline_code]  # Return cached airline name
-
-        url = f"https://test.api.amadeus.com/v1/reference-data/airlines?airlineCodes={airline_code}"
-        headers = {
-            "Authorization": f"Bearer {self.access_token}"
+        processed_flights = []
+        
+        for offer in response_data.get("data", []):
+            flight = {
+                "id": offer.get("id"),
+                "price": {
+                    "total": float(offer.get("price", {}).get("total", 0)),
+                    "currency": offer.get("price", {}).get("currency", "USD"),
+                    "base": float(offer.get("price", {}).get("base", 0)),
+                    "fees": float(offer.get("price", {}).get("fees", 0)),
+                    "taxes": float(offer.get("price", {}).get("taxes", 0))
+                },
+                "itineraries": []
+            }
+            
+            for itinerary in offer.get("itineraries", []):
+                segments = []
+                for segment in itinerary.get("segments", []):
+                    segments.append({
+                        "departure": {
+                            "airport": segment.get("departure", {}).get("iataCode"),
+                            "terminal": segment.get("departure", {}).get("terminal"),
+                            "time": segment.get("departure", {}).get("at")
+                        },
+                        "arrival": {
+                            "airport": segment.get("arrival", {}).get("iataCode"),
+                            "terminal": segment.get("arrival", {}).get("terminal"),
+                            "time": segment.get("arrival", {}).get("at")
+                        },
+                        "airline": {
+                            "code": segment.get("carrierCode"),
+                            "name": self.get_airline_name(segment.get("carrierCode"))
+                        },
+                        "flight_number": segment.get("number"),
+                        "duration": segment.get("duration"),
+                        "aircraft": {
+                            "code": segment.get("aircraft", {}).get("code"),
+                            "name": self._get_aircraft_name(segment.get("aircraft", {}).get("code"))
+                        },
+                        "operating": {
+                            "code": segment.get("operating", {}).get("carrierCode"),
+                            "name": self.get_airline_name(segment.get("operating", {}).get("carrierCode"))
+                        }
+                    })
+                flight["itineraries"].append({
+                    "duration": itinerary.get("duration"),
+                    "segments": segments
+                })
+            
+            processed_flights.append(flight)
+        
+        return {
+            "status": "success",
+            "flights": processed_flights,
+            "meta": response_data.get("meta", {}),
+            "dictionaries": response_data.get("dictionaries", {})
         }
 
-        response = requests.get(url, headers=headers)
+    def get_airline_name(self, airline_code: str) -> str:
+        """
+        Get airline name from code, using cache if available.
+        
+        Args:
+            airline_code (str): Airline IATA code
+            
+        Returns:
+            str: Airline name or "Unknown Airline" if not found
+        """
+        if not airline_code:
+            return "Unknown Airline"
+            
+        if airline_code in self.airlines:
+            return self.airlines[airline_code]
 
-        if response.status_code == 200:
-            airline_data = response.json()
-            if airline_data["data"]:
-                airline_name = airline_data["data"][0]["businessName"]
-                self.airlines[airline_code] = airline_name  # Cache result
-                return airline_name
-        return "Unknown Airline"
+        try:
+            response = requests.get(
+                f"{self.base_url}/v1/reference-data/airlines?airlineCodes={airline_code}",
+                headers={"Authorization": f"Bearer {self.access_token}"},
+                timeout=10
+            )
+            
+            if response.status_code == 200:
+                airline_data = response.json()
+                if airline_data.get("data"):
+                    airline_name = airline_data["data"][0]["businessName"]
+                    self.airlines[airline_code] = airline_name
+                    return airline_name
+                    
+            return "Unknown Airline"
+            
+        except Exception:
+            return "Unknown Airline"
+
+    def _get_aircraft_name(self, aircraft_code: str) -> str:
+        """
+        Get aircraft name from code.
+        
+        Args:
+            aircraft_code (str): Aircraft code
+            
+        Returns:
+            str: Aircraft name or "Unknown Aircraft" if not found
+        """
+        if not aircraft_code:
+            return "Unknown Aircraft"
+            
+        try:
+            response = requests.get(
+                f"{self.base_url}/v1/reference-data/aircraft?aircraftCodes={aircraft_code}",
+                headers={"Authorization": f"Bearer {self.access_token}"},
+                timeout=10
+            )
+            
+            if response.status_code == 200:
+                aircraft_data = response.json()
+                if aircraft_data.get("data"):
+                    return aircraft_data["data"][0]["name"]
+                    
+            return "Unknown Aircraft"
+            
+        except Exception:
+            return "Unknown Aircraft"

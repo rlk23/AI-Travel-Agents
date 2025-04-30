@@ -1,28 +1,38 @@
 import requests
-import json
 from datetime import datetime
-from database.crud import user
-from database.models import Passenger, Booking, BookingItem
+from typing import Dict, List, Optional
 from sqlalchemy.orm import Session
 import uuid
 
 class FlightBookingAgent:
-    def __init__(self, access_token, db: Session = None):
+    def __init__(self, access_token: str, db: Optional[Session] = None):
+        """
+        Initialize the FlightBookingAgent with Amadeus API credentials.
+        
+        Args:
+            access_token (str): Amadeus API access token
+            db (Optional[Session]): Database session for storing booking records
+        """
         self.access_token = access_token
-        self.booking_endpoint = "https://test.api.amadeus.com/v1/booking/flight-orders"
+        self.base_url = "https://test.api.amadeus.com"
         self.db = db
 
-    def create_booking(self, flight_offer, traveler_info, contact_info):
+    def create_booking(
+        self,
+        flight_offer: Dict,
+        traveler_info: List[Dict],
+        contact_info: Dict
+    ) -> Dict:
         """
         Create a flight booking using the Amadeus API.
         
         Args:
-            flight_offer (dict): The selected flight offer from search results
-            traveler_info (dict): Information about the traveler(s)
-            contact_info (dict): Contact information for the booking
+            flight_offer (Dict): The selected flight offer from search results
+            traveler_info (List[Dict]): List of traveler information dictionaries
+            contact_info (Dict): Contact information for the booking
             
         Returns:
-            dict: Booking confirmation or error message
+            Dict: Booking confirmation or error message
         """
         headers = {
             "Authorization": f"Bearer {self.access_token}",
@@ -75,7 +85,12 @@ class FlightBookingAgent:
         }
 
         try:
-            response = requests.post(self.booking_endpoint, headers=headers, json=payload)
+            response = requests.post(
+                f"{self.base_url}/v1/booking/flight-orders",
+                headers=headers,
+                json=payload,
+                timeout=30
+            )
             
             if response.status_code == 201:
                 booking_data = response.json()
@@ -91,20 +106,36 @@ class FlightBookingAgent:
                     "status": "error",
                     "error": error_data.get("errors", [{"detail": "Unknown error occurred"}])[0]["detail"]
                 }
+        except requests.Timeout:
+            return {
+                "status": "error",
+                "error": "Request timed out. Please try again."
+            }
+        except requests.RequestException as e:
+            return {
+                "status": "error",
+                "error": f"Request failed: {str(e)}"
+            }
         except Exception as e:
             return {
                 "status": "error",
-                "error": str(e)
+                "error": f"Unexpected error: {str(e)}"
             }
 
-    def _prepare_travelers(self, traveler_info):
+    def _prepare_travelers(self, traveler_info: List[Dict]) -> List[Dict]:
         """
         Prepare traveler information in the format required by the Amadeus API.
+        
+        Args:
+            traveler_info (List[Dict]): List of traveler information dictionaries
+            
+        Returns:
+            List[Dict]: Formatted traveler information
         """
         travelers = []
         for traveler in traveler_info:
             traveler_data = {
-                "id": traveler.get("id", "1"),
+                "id": traveler.get("id", str(uuid.uuid4())),
                 "dateOfBirth": traveler.get("dateOfBirth", ""),
                 "name": {
                     "firstName": traveler.get("firstName", ""),
@@ -139,7 +170,7 @@ class FlightBookingAgent:
             travelers.append(traveler_data)
         return travelers
 
-    def get_booking_status(self, booking_id):
+    def get_booking_status(self, booking_id: str) -> Dict:
         """
         Retrieve the status of a flight booking.
         
@@ -147,7 +178,7 @@ class FlightBookingAgent:
             booking_id (str): The ID of the booking to check
             
         Returns:
-            dict: Booking status information
+            Dict: Booking status information
         """
         headers = {
             "Authorization": f"Bearer {self.access_token}"
@@ -155,8 +186,9 @@ class FlightBookingAgent:
         
         try:
             response = requests.get(
-                f"{self.booking_endpoint}/{booking_id}",
-                headers=headers
+                f"{self.base_url}/v1/booking/flight-orders/{booking_id}",
+                headers=headers,
+                timeout=30
             )
             
             if response.status_code == 200:
@@ -170,13 +202,23 @@ class FlightBookingAgent:
                     "status": "error",
                     "error": error_data.get("errors", [{"detail": "Unknown error occurred"}])[0]["detail"]
                 }
+        except requests.Timeout:
+            return {
+                "status": "error",
+                "error": "Request timed out. Please try again."
+            }
+        except requests.RequestException as e:
+            return {
+                "status": "error",
+                "error": f"Request failed: {str(e)}"
+            }
         except Exception as e:
             return {
                 "status": "error",
-                "error": str(e)
+                "error": f"Unexpected error: {str(e)}"
             }
 
-    def cancel_booking(self, booking_id):
+    def cancel_booking(self, booking_id: str) -> Dict:
         """
         Cancel a flight booking.
         
@@ -184,7 +226,7 @@ class FlightBookingAgent:
             booking_id (str): The ID of the booking to cancel
             
         Returns:
-            dict: Cancellation status
+            Dict: Cancellation status
         """
         headers = {
             "Authorization": f"Bearer {self.access_token}"
@@ -192,8 +234,9 @@ class FlightBookingAgent:
         
         try:
             response = requests.delete(
-                f"{self.booking_endpoint}/{booking_id}",
-                headers=headers
+                f"{self.base_url}/v1/booking/flight-orders/{booking_id}",
+                headers=headers,
+                timeout=30
             )
             
             if response.status_code == 204:
@@ -207,10 +250,20 @@ class FlightBookingAgent:
                     "status": "error",
                     "error": error_data.get("errors", [{"detail": "Unknown error occurred"}])[0]["detail"]
                 }
+        except requests.Timeout:
+            return {
+                "status": "error",
+                "error": "Request timed out. Please try again."
+            }
+        except requests.RequestException as e:
+            return {
+                "status": "error",
+                "error": f"Request failed: {str(e)}"
+            }
         except Exception as e:
             return {
                 "status": "error",
-                "error": str(e)
+                "error": f"Unexpected error: {str(e)}"
             }
 
     def create_booking_with_db(self, flight_offer, user_id, traveler_info, contact_info):
