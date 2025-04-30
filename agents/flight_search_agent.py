@@ -1,12 +1,6 @@
-import time
-from flask import Flask, request, jsonify
-from flask_cors import CORS
-from langchain_openai import ChatOpenAI
-from langchain.prompts import PromptTemplate
-from datetime import datetime
 import requests
-import json
-from typing import Dict, List, Optional
+import time
+from typing import Dict
 
 class FlightSearchAgent:
     def __init__(self, access_token: str):
@@ -45,6 +39,13 @@ class FlightSearchAgent:
         Returns:
             Dict: Processed flight search results or error message
         """
+        # Validate inputs
+        if not origin or not destination or not date:
+            return {
+                "status": "error",
+                "error": "Origin, destination, and date are required"
+            }
+            
         headers = {
             "Authorization": f"Bearer {self.access_token}",
             "Content-Type": "application/json"
@@ -85,21 +86,39 @@ class FlightSearchAgent:
         }
 
         try:
+            print(f"Sending flight search request: {origin} to {destination} on {date}")
             response = requests.post(
                 f"{self.base_url}/v2/shopping/flight-offers",
                 headers=headers,
                 json=payload,
-                timeout=30  # Add timeout
+                timeout=30
             )
 
+            print(f"Flight search response status: {response.status_code}")
+            
             if response.status_code == 200:
-                return self._process_flight_results(response.json())
-            else:
-                error_data = response.json()
+                results = self._process_flight_results(response.json())
+                print(f"Found {len(results.get('flights', []))} flight results")
+                return results
+            elif response.status_code == 401:
                 return {
                     "status": "error",
-                    "error": error_data.get("errors", [{"detail": "Unknown error occurred"}])[0]["detail"]
+                    "error": "Authentication failed. Token may have expired."
                 }
+            else:
+                try:
+                    error_data = response.json()
+                    error_detail = error_data.get("errors", [{"detail": "Unknown error occurred"}])[0]["detail"]
+                    print(f"API error: {error_detail}")
+                    return {
+                        "status": "error",
+                        "error": error_detail
+                    }
+                except:
+                    return {
+                        "status": "error",
+                        "error": f"Error with status code {response.status_code}: {response.text}"
+                    }
                 
         except requests.Timeout:
             return {
@@ -112,6 +131,7 @@ class FlightSearchAgent:
                 "error": f"Request failed: {str(e)}"
             }
         except Exception as e:
+            print(f"Unexpected error in search_flights: {str(e)}")
             return {
                 "status": "error",
                 "error": f"Unexpected error: {str(e)}"

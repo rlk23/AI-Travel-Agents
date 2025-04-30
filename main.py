@@ -6,6 +6,26 @@ from agents.flight_booking_agent import FlightBookingAgent
 from database.config import SessionLocal
 from database.models import User
 import uuid
+import os
+from dotenv import load_dotenv, find_dotenv
+
+# Debug: Print current working directory and .env file path
+print(f"Current working directory: {os.getcwd()}")
+print(f".env file path: {os.path.join(os.getcwd(), '.env')}")
+
+# Try to find and load .env file
+env_path = find_dotenv()
+if env_path:
+    print(f"Found .env file at: {env_path}")
+    load_dotenv(env_path)
+else:
+    print("Could not find .env file")
+
+# Debug: Print all environment variables (excluding sensitive ones)
+print("\nEnvironment variables:")
+for key, value in os.environ.items():
+    if 'AMADEUS' in key:
+        print(f"{key}: {'*' * len(value) if value else 'Not set'}")
 
 # Initialize Flask app
 app = Flask(__name__)
@@ -19,8 +39,19 @@ def get_db():
     finally:
         db.close()
 
+# Get API credentials from environment variables
+AMADEUS_API_KEY = os.getenv('AMADEUS_API_KEY')
+AMADEUS_API_SECRET = os.getenv('AMADEUS_API_SECRET')
+
+# Debug: Print the values we're using
+print(f"\nUsing API Key: {'*' * len(AMADEUS_API_KEY) if AMADEUS_API_KEY else 'Not set'}")
+print(f"Using API Secret: {'*' * len(AMADEUS_API_SECRET) if AMADEUS_API_SECRET else 'Not set'}")
+
+if not AMADEUS_API_KEY or not AMADEUS_API_SECRET:
+    raise ValueError("AMADEUS_API_KEY and AMADEUS_API_SECRET must be set in environment variables or .env file")
+
 # Initialize agents
-nlp_agent = NLPFlightBookingAgent()
+nlp_agent = NLPFlightBookingAgent(api_key=AMADEUS_API_KEY, api_secret=AMADEUS_API_SECRET)
 db = next(get_db())
 booking_agent = FlightBookingAgent(nlp_agent.city_agent.access_token, db)
 
